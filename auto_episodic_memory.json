@@ -1,0 +1,107 @@
+{
+    "user_profile": {
+        "name": "User"
+    },
+    "episodes": [
+        {
+            "ts": "2026-01-19 10:03:57.544311",
+            "role": "user",
+            "content": "holding in my hand"
+        },
+        {
+            "ts": "2026-01-19 10:03:57.545313",
+            "role": "jack",
+            "content": "Local system is not responding. Check Ollama."
+        },
+        {
+            "ts": "2026-01-19 10:05:12.177578",
+            "role": "user",
+            "content": "my name"
+        },
+        {
+            "ts": "2026-01-19 10:05:12.177578",
+            "role": "jack",
+            "content": "Your name is User."
+        },
+        {
+            "ts": "2026-01-19 10:05:50.017242",
+            "role": "user",
+            "content": "my name is Daksh remember that"
+        },
+        {
+            "ts": "2026-01-19 10:05:50.018243",
+            "role": "jack",
+            "content": "Okay, Daksh. I'll remember that your name is Daksh."
+        },
+        {
+            "ts": "2026-01-19 10:06:29.888002",
+            "role": "user",
+            "content": "my holding in my"
+        },
+        {
+            "ts": "2026-01-19 10:06:29.889039",
+            "role": "jack",
+            "content": "I cannot access your personal financial information or holdings. To see your holdings, you would typically need to check with the financial institution where they are held (e.g., your bank, brokerage, or retirement account provider)."
+        },
+        {
+            "ts": "2026-01-19 10:09:27.969419",
+            "role": "user",
+            "content": "what am I holding in my"
+        },
+        {
+            "ts": "2026-01-19 10:09:27.970402",
+            "role": "jack",
+            "content": "Based on the image, you are holding a Bennett University ID card. It displays your name, Daksh Kasam, your program (Bachelor of Technology in Computer Science and Engineering), enrollment number, blood group, and a phone number."
+        },
+        {
+            "ts": "2026-01-19 10:13:41.956231",
+            "role": "user",
+            "content": "holding in my hand right now check in the camera"
+        },
+        {
+            "ts": "2026-01-19 10:13:41.956231",
+            "role": "jack",
+            "content": "Local system is not responding."
+        },
+        {
+            "ts": "2026-01-19 10:16:37.172107",
+            "role": "user",
+            "content": "what am I holding in my hand right now check in the camera"
+        },
+        {
+            "ts": "2026-01-19 10:16:37.174125",
+            "role": "jack",
+            "content": "Based on the image, you are holding a set of keys with a yellow lanyard."
+        },
+        {
+            "ts": "2026-01-19 10:25:56.787064",
+            "role": "user",
+            "content": "what time is it right now"
+        },
+        {
+            "ts": "2026-01-19 10:25:56.810153",
+            "role": "jack",
+            "content": "The current time is 10:25."
+        },
+        {
+            "ts": "2026-01-19 10:26:14.510898",
+            "role": "user",
+            "content": "how many minutes until 10:30"
+        },
+        {
+            "ts": "2026-01-19 10:26:14.532935",
+            "role": "jack",
+            "content": "jack: There are 5 minutes until 10:30."
+        },
+        {
+            "ts": "2026-01-19 10:27:05.666437",
+            "role": "user",
+            "content": "what are my holding in my hand right now check in the camera"
+        },
+        {
+            "ts": "2026-01-19 10:27:05.689146",
+            "role": "jack",
+            "content": "You are holding a Bennett University ID card."
+        }
+    ]
+}
