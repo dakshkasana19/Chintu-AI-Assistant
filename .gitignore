@@ -1,3 +1,16 @@
-venv/
+# Byte-compiled / optimized / DLL files
 __pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+venv/
+env/
+
+# PyInstaller folders
+build/
+dist/
+*.spec
+
+# Local config
 .env
