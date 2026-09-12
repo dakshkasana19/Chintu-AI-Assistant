@@ -1,405 +1,562 @@
 import sys
+import os
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(line_buffering=True, encoding='utf-8')
+
 import threading
 import time
 import signal
-import os
-import speech_recognition as sr
-import pyttsx3
+import re
 import datetime
 import webbrowser
 import subprocess
-import random
-import numpy as np
+import requests
+import asyncio
+import tempfile
+import edge_tts
+import pygame
+import speech_recognition as sr
+import pyttsx3
 from PyQt6.QtWidgets import QApplication
 from chintu_ui import ChintuCoreUI, UIBridge
 from ddgs import DDGS
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
+# Optional Gemini support if API key is provided
+GEMINI_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+gemini_model = None
+if GEMINI_KEY:
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=GEMINI_KEY)
+        gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+        print("[AI] Gemini Generative AI enabled for advanced synthesis.")
+    except Exception as e:
+        print(f"[AI] Gemini init notice: {e}")
+
 # --- CONFIGURATION ---
-WAKE_VARIANTS = ["chintu", "chinto", "chintoo", "chintu ji", "hey chintu", "a chintu"]
+WAKE_VARIANTS = [
+    "chintu", "hey chintu", "chinto", "chintoo", "chintu ji",
+    "ok chintu", "a chintu", "hello chintu", "hi chintu", "wake up chintu"
+]
 
-# ============================================================
-# RESEARCH PAPER IMPLEMENTATION NOTES
-# "Lost in the Middle: How Language Models Use Long Contexts"
-# Liu et al., 2023
-#
-# Key findings applied in this code:
-#
-# 1. PRIMACY BIAS  [*] Most relevant snippet goes FIRST in context
-# 2. RECENCY BIAS  [*] A summary/restatement goes LAST in context
-# 3. QUERY-AWARE CONTEXTUALIZATION [*] Query placed BEFORE and
-#    AFTER the retrieved documents in the prompt so the model
-#    can attend to the question while reading every snippet
-# 4. CONTEXT TRUNCATION [*] Only top-N snippets used; more docs
-#    give diminishing returns (~1.5% gain beyond 3-5 results)
-# 5. RELEVANCE RERANKING [*] Snippets scored and reordered so
-#    the best match is at position 0, not buried in the middle
-# ============================================================
-
-MAX_SNIPPETS = 3          # Paper ?5: performance saturates quickly
-MAX_SNIPPET_CHARS = 180   # Keep each snippet concise
+EXIT_PHRASES = [
+    "exit", "sleep", "go to sleep", "goodbye", "bye chintu", "bye bye",
+    "quit", "stop listening", "dismiss", "close chintu", "shut down",
+    "sleep mode", "go to sleep chintu"
+]
 
 
 class ChintuAssistant:
+    """
+    Chintu - Siri for PC Voice Assistant
+    - Standby Sleep Mode with Wake Word Activation
+    - Continuous Multi-turn Conversational Loop (Active Mode)
+    - Dynamic Live Web Search & Summarization (Zero hardcoded answers)
+    - Windows PC Utility Commands (Apps, System, Web shortcuts)
+    - Exit command triggers Sleep Mode
+    """
     def __init__(self, bridge):
         self.bridge = bridge
         self.recognizer = sr.Recognizer()
         self.mic = None
         self.running = True
+        self.tts_lock = threading.Lock()
 
         self.setup_microphone()
-        print("[OK] Chintu ready! (VAD + DDG Web Search + Lost-in-the-Middle optimization)")
-        print(f"Listening for: {WAKE_VARIANTS}")
+        print("[OK] Chintu AI Assistant (Siri for PC edition) Ready!")
+        print(f"[*] Wake words: {WAKE_VARIANTS[:4]}...")
+        print(f"[*] Exit words: {EXIT_PHRASES[:4]}...")
 
     # ------------------------------------------------------------------
-    # MICROPHONE SETUP
+    # MICROPHONE SETUP & CALIBRATION
     # ------------------------------------------------------------------
     def setup_microphone(self):
-        """Professional VAD microphone setup"""
         try:
             self.mic = sr.Microphone()
-            print("[OK] Microphone ready")
-
-            self.recognizer.energy_threshold = 350
+            self.recognizer.energy_threshold = 300
             self.recognizer.dynamic_energy_threshold = True
-            self.recognizer.pause_threshold = 0.5
+            self.recognizer.pause_threshold = 1.0
             self.recognizer.non_speaking_duration = 0.3
 
             with self.mic as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=2.0)
-                print("[OK] VAD calibrated")
+                print("[*] Calibrating microphone for ambient noise...")
+                self.recognizer.adjust_for_ambient_noise(source, duration=1.5)
+                print("[OK] Microphone calibrated and ready.")
         except Exception as e:
-            print(f"[ERROR] Mic error: {e}")
+            print(f"[ERROR] Mic setup error: {e}")
             self.mic = None
 
     # ------------------------------------------------------------------
-    # TTS
+    # TTS (ULTRA-REALISTIC NEURAL TEXT TO SPEECH)
     # ------------------------------------------------------------------
     def speak(self, text):
-        """Enhanced TTS with smooth UI feedback"""
-        if not self.running:
+        """Converts text to spoken audio with natural Microsoft Neural Voice."""
+        if not self.running or not text:
             return
-        print(f"?[*]  Chintu: {text}")
+
+        speech_text = self.clean_snippet(text)
+        speech_text = re.sub(r'[*_#`~\[\]()]', '', speech_text)
+        speech_text = re.sub(r'https?://\S+', '', speech_text).strip()
+        if not speech_text:
+            return
+
+        print(f"\n[CHINTU]: {speech_text}")
         self.bridge.status_changed.emit("Speaking...")
+
+        # 1. Try Microsoft Edge Neural Voice (ultra-lifelike Siri-quality voice)
         try:
-            engine = pyttsx3.init()
-            voices = engine.getProperty('voices')
-            engine.setProperty('voice', voices[1].id if len(voices) > 1 else voices[0].id)
-            engine.setProperty('rate', 175)
-            engine.say(text[:250])
-            engine.runAndWait()
+            temp_mp3 = os.path.join(tempfile.gettempdir(), f"chintu_{int(time.time()*1000)}.mp3")
+
+            async def _synth():
+                comm = edge_tts.Communicate(speech_text, "en-US-AriaNeural", rate="+4%")
+                await comm.save(temp_mp3)
+
+            asyncio.run(_synth())
+
+            if os.path.exists(temp_mp3):
+                pygame.mixer.init()
+                pygame.mixer.music.load(temp_mp3)
+                pygame.mixer.music.play()
+                while pygame.mixer.music.get_busy() and self.running:
+                    time.sleep(0.04)
+                pygame.mixer.music.unload()
+                pygame.mixer.quit()
+                try:
+                    os.remove(temp_mp3)
+                except Exception:
+                    pass
+                return
         except Exception as e:
-            print(f"TTS Error: {e}")
-        self.bridge.status_changed.emit("STANDBY")
+            print(f"[Neural TTS Notice]: {e}")
+
+        # 2. Fallback to pyttsx3 offline engine
+        with self.tts_lock:
+            try:
+                engine = pyttsx3.init()
+                voices = engine.getProperty('voices')
+                selected_voice = voices[0].id
+                for v in voices:
+                    if 'zira' in v.name.lower() or 'female' in v.name.lower() or 'hazel' in v.name.lower():
+                        selected_voice = v.id
+                        break
+                engine.setProperty('voice', selected_voice)
+                engine.setProperty('rate', 180)
+                engine.say(speech_text[:350])
+                engine.runAndWait()
+                engine.stop()
+            except Exception as e:
+                print(f"[TTS Error]: {e}")
 
     # ------------------------------------------------------------------
-    # WEB SEARCH  (unchanged [*] returns raw snippets)
+    # WEB SEARCH & DYNAMIC INTELLIGENCE PIPELINE
     # ------------------------------------------------------------------
-    def search_web(self, query):
-        """Fetch raw search snippets from DuckDuckGo using the latest ddgs library."""
-        self.bridge.status_changed.emit("Searching Web...")
-        print(f"[*] Searching: {query}")
+    def clean_snippet(self, text):
+        if not text:
+            return ""
+        # 1. Remove date prefixes: "Month Day, Year - ", "Day Month Year - ", "X days ago - "
+        date_pattern = (
+            r'^\s*(?:'
+            r'(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{2,4}|'
+            r'\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*,?\s+\d{2,4}|'
+            r'\d+\s+(?:seconds?|minutes?|hours?|days?|weeks?|months?|years?)\s+ago|'
+            r'\d{4}\s*[-—]\s*\d{4}'
+            r')\s*[-—–·•:|\.]\s*'
+        )
+        text = re.sub(date_pattern, '', text, flags=re.IGNORECASE)
+        # 2. Strip any leftover date stamps at the start
+        text = re.sub(r'^(?:[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})\s*[-—–·•]\s*', '', text)
+        # 3. Remove conversational filler
+        text = re.sub(r'^(?:Well,\s*|Basically,\s*|Actually,\s*)', '', text, flags=re.IGNORECASE)
+        # 4. Remove phonetic pronunciation guides e.g. (/ˈɒtəwə/) or (listen)
+        text = re.sub(r'\s*\([^)]*(?:/|ˈ|ˌ|ə|ɛ|ɪ|ʊ|ʌ|æ|ɑ|ɔ|θ|ð|ʃ|ʒ|ŋ|ʔ|listen)[^)]*\)', '', text)
+        # 5. Normalize non-ascii characters to ascii for TTS & console safety
+        text = text.encode('ascii', 'ignore').decode('ascii')
+        text = re.sub(r'[\t]+', ' ', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+
+    def query_wikipedia(self, query):
+        """Fetch authoritative, review-free summary from Wikipedia full-text search API."""
         try:
-            results = list(DDGS().text(query, max_results=MAX_SNIPPETS + 2))
-            return results if results else []
+            clean_q = re.sub(
+                r'^(who|what|when|where|why|how|is|are|was|were|tell|me|about|the|a|an)\s+',
+                '', query.strip(), flags=re.IGNORECASE
+            ).strip(' ?.')
+            if not clean_q:
+                clean_q = query.strip(' ?.')
+
+            search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={requests.utils.quote(clean_q)}&format=json&utf8=1"
+            res = requests.get(search_url, headers={'User-Agent': 'ChintuAI/2.0'}, timeout=3.0).json()
+            items = res.get('query', {}).get('search', [])
+            if items:
+                best_title = items[0]['title']
+                summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{requests.utils.quote(best_title)}"
+                s_res = requests.get(summary_url, headers={'User-Agent': 'ChintuAI/2.0'}, timeout=3.0).json()
+                extract = s_res.get('extract')
+                if extract and len(extract) > 30:
+                    clean_extract = self.clean_snippet(extract)
+                    sentences = re.split(r'(?<=[.!?])\s+', clean_extract)
+                    return " ".join(sentences[:2]).strip()
+        except Exception:
+            pass
+        return None
+
+    def search_duckduckgo(self, query):
+        """Fetch live web results using DDGS."""
+        try:
+            return list(DDGS().text(query, max_results=5))
         except Exception as e:
-            print(f"[ERROR] Search error: {e}")
+            print(f"[DDG Search Notice]: {e}")
             return []
 
-    # ------------------------------------------------------------------
-    # RESEARCH PAPER LEARNING 5 [*] RELEVANCE RERANKING
-    # Rank snippets by keyword overlap with the query so the most
-    # relevant one ends up at position 0 (exploiting primacy bias).
-    # ------------------------------------------------------------------
-    def rerank_snippets(self, query, snippets):
-        """
-        Simple lexical reranker: score each snippet by how many
-        query tokens appear in its text.  The highest-scoring
-        snippet goes first (primacy bias), lowest-scoring goes last
-        (recency bias is less harmful at the tail).
+    def synthesize_summary(self, query, ddg_results):
+        """Synthesize a concise, factual, review-free answer from search snippets."""
+        if not ddg_results:
+            return "I searched the web, but couldn't find a direct answer for that query."
 
-        Paper reference: ?5 and ?2.3 [*] placing relevant info at the
-        start/end of context yields significantly higher accuracy.
-        """
-        query_tokens = set(query.lower().split())
+        # If Gemini AI is active, use it to generate the perfect spoken summary
+        if gemini_model:
+            try:
+                context = "\n".join([f"- {r.get('title')}: {r.get('body')}" for r in ddg_results[:4]])
+                prompt = (
+                    f"User asked: '{query}'\n\n"
+                    f"Web search results:\n{context}\n\n"
+                    "Think about the question, understand the facts, and provide a direct, concise, natural 1-2 sentence spoken answer like Siri. "
+                    "Do NOT read out reviews, author names, dates, or citations."
+                )
+                ai_resp = gemini_model.generate_content(prompt)
+                if ai_resp and ai_resp.text:
+                    return self.clean_snippet(ai_resp.text.strip())
+            except Exception as e:
+                print(f"[Gemini fallback]: {e}")
 
-        def score(snippet):
-            body = (snippet.get('title', '') + ' ' + snippet.get('body', '')).lower()
-            return sum(1 for tok in query_tokens if tok in body)
+        # Built-in zero-config intelligent NLP extraction
+        stopwords = {'what', 'is', 'the', 'who', 'how', 'when', 'where', 'are', 'in', 'of', 'and', 'a', 'to', 'for', 'was', 'tell', 'me', 'about'}
+        query_words = set(re.findall(r'\w+', query.lower())) - stopwords
 
-        ranked = sorted(snippets, key=score, reverse=True)
-        print(f"[*] Reranked {len(ranked)} snippets (best-first for primacy bias)")
-        return ranked[:MAX_SNIPPETS]
-
-    # ------------------------------------------------------------------
-    # RESEARCH PAPER LEARNING 1-4 [*] QUERY-AWARE CONTEXT ASSEMBLY
-    # Build the prompt so that:
-    #   [*] Query appears at the TOP  (query-aware contextualization, ?4.2)
-    #   [*] Most-relevant snippet is FIRST (primacy bias, ?2.3)
-    #   [*] Least-relevant snippet is LAST  (recency bias still helps, ?2.3)
-    #   [*] Query is REPEATED at the BOTTOM (query-aware contextualization)
-    #   [*] Total number of snippets is capped (context truncation, ?5)
-    # ------------------------------------------------------------------
-    def build_query_aware_prompt(self, query, ranked_snippets):
-        """
-        Constructs a query-aware prompt following the paper's guidance.
-
-        Structure:
-            Question: <query>              [*] query BEFORE documents
-            [Document 1] most relevant     [*] primacy position
-            [Document 2] ...
-            [Document 3] least relevant    [*] recency position
-            Given the above, answer: <query>  [*] query AFTER documents
-        """
-        lines = [f"Question: {query}\n"]
-
-        for i, snippet in enumerate(ranked_snippets):
-            title = snippet.get('title', f'Result {i+1}')
-            body  = snippet.get('body', '')[:MAX_SNIPPET_CHARS]
-            lines.append(f"[Document {i+1}] ({title}): {body}")
-
-        # Repeat query at the end [*] paper ?4.2 shows this helps models
-        # attend to the question when contextualising the last documents
-        lines.append(f"\nGiven the documents above, answer concisely: {query}")
-
-        prompt = "\n".join(lines)
-        print(f"[*] Query-aware prompt built ({len(ranked_snippets)} docs, "
-              f"query at top & bottom)")
-        return prompt
-
-    # ------------------------------------------------------------------
-    # RESPONSE SYNTHESIS
-    # Instead of random template selection, we use the structured prompt
-    # to produce a deterministic, context-grounded answer.
-    # ------------------------------------------------------------------
-    def synthesize_response(self, query, ranked_snippets):
-        """
-        Refined factual synthesis following Primacy and Recency findings.
-        Prioritizes direct answers with factual density (numbers/metrics).
-        """
-        if not ranked_snippets:
-            return "I couldn't find any information on the web for this query."
-
-        # Filter stopwords but keep high-value modifiers
-        stopwords = {'what', 'is', 'the', 'who', 'how', 'when', 'where', 'are', 'in', 'of', 'and', 'a', 'to'}
-        query_tokens = [tok.lower() for tok in query.split() if tok.lower() not in stopwords]
-        
         candidates = []
-        
-        # Weighing Primacy (0) and Recency (last) more heavily
-        for i, snippet in enumerate(ranked_snippets):
-            body = snippet.get('body', '')
-            source = snippet.get('title', 'a web source')
-            
-            # Bonus for position (Primacy/Recency bias)
-            position_bonus = 0
-            if i == 0: position_bonus = 5
-            if i == len(ranked_snippets) - 1: position_bonus = 4
-            
-            segments = [s.strip() for s in body.split('.') if len(s.strip()) > 25]
-            
-            for segment in segments:
-                lower_seg = segment.lower()
+        for r in ddg_results:
+            body = self.clean_snippet(r.get('body', ''))
+            sentences = re.split(r'(?<=[.!?])\s+', body)
+            for s in sentences:
+                s = self.clean_snippet(s)
+                if len(s) < 22 or len(s) > 230:
+                    continue
+                s_lower = s.lower()
                 
-                # FACT SCORING
-                # 1. Direct Keyword Match (high weight)
-                match_count = sum(1 for tok in query_tokens if tok in lower_seg)
-                
-                # 2. Factual Density (Numbers, dates, measurements)
-                has_digits = any(c.isdigit() for c in segment)
-                
-                # 3. Direct Definition/State (is, was, specifically)
-                defining_weight = 0
-                if ' is ' in lower_seg or ' is the ' in lower_seg: defining_weight = 4
-                elif ' was ' in lower_seg: defining_weight = 2 # Prefer 'is' over 'was'
-                
-                score = (match_count * 4) + defining_weight + position_bonus
-                if has_digits: score += 5
-                
-                # Penalize noisy sentences
-                if any(w in lower_seg for w in ['click', 'read more', 'find out', 'article', 'welcome']):
-                    score -= 10
-                
-                if score > 5:
-                    candidates.append({
-                        'text': segment,
-                        'source': source,
-                        'score': score
-                    })
+                # Skip navigation, junk text, metadata, and user reviews / subjective opinions
+                junk_markers = [
+                    'cookie', 'subscribe', 'sign in', 'click here', 'privacy policy',
+                    'read more', 'key words', 'keywords', 'doi:', 'abstract:', 'issn:',
+                    'reviewer', 'critics', 'allmusic', 'imdb', 'in my opinion', 'i think',
+                    'i am not going to be original', 'user review', 'star rating', 'blog post',
+                    'commented', 'wrote that'
+                ]
+                if any(junk in s_lower for junk in junk_markers):
+                    continue
 
-        if not candidates:
-            # Fallback
-            top = ranked_snippets[0]
-            return f"According to {top.get('title')}, {top.get('body')[:150]}..."
+                s_words = set(re.findall(r'\w+', s_lower))
+                overlap = len(query_words.intersection(s_words))
+                score = overlap * 4
 
-        # Sort by score descending
-        best = sorted(candidates, key=lambda x: x['score'], reverse=True)[0]
-        
-        ans = best['text'].replace('\n', ' ').strip()
-        if not any(ans.endswith(p) for p in ['.', '!', '?']): ans += '.'
-        
-        return f"Based on {best['source']}, {ans}"
+                # Bonus for definitive, factual sentence structures
+                if any(s_lower.startswith(w) for w in ['it is', 'he is', 'she is', 'they are', 'this is']):
+                    score += 4
+                if ' is a ' in s_lower or ' is an ' in s_lower or ' was a ' in s_lower:
+                    score += 5
+                if any(c.isdigit() for c in s):
+                    score += 2
+
+                candidates.append((score, s))
+
+        if candidates:
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            best_sentence = candidates[0][1]
+            if not any(best_sentence.endswith(p) for p in ['.', '!', '?']):
+                best_sentence += '.'
+            return best_sentence
+
+        # Fallback to first snippet body with dates removed
+        fallback = self.clean_snippet(ddg_results[0].get('body', ''))
+        return fallback[:160] + ("." if not fallback.endswith(".") else "")
+
+    def answer_web_query(self, query):
+        """Unified web intelligence pipeline with entity comprehension."""
+        self.bridge.status_changed.emit("Thinking...")
+        query_clean = query.strip()
+
+        # 1. Try Wikipedia first for high-quality encyclopedic entity definitions (zero reviews/dates)
+        wiki_ans = self.query_wikipedia(query_clean)
+        if wiki_ans and len(wiki_ans) > 25:
+            return wiki_ans
+
+        # 2. Live Web Search via DuckDuckGo with deep NLP synthesis
+        ddg_results = self.search_duckduckgo(query_clean)
+        return self.synthesize_summary(query_clean, ddg_results)
 
     # ------------------------------------------------------------------
-    # SMART RESPONSE ROUTER
+    # HIGH-ACCURACY SPEECH TRANSCRIPTION (WHISPER + GOOGLE HYBRID)
     # ------------------------------------------------------------------
-    def get_smart_response(self, query):
-        """
-        Route the query:
-          [*] Instant local handlers (time, date, apps) [*] no LLM needed
-          [*] Static knowledge base [*] no web call needed
-          [*] Everything else [*] web search with Lost-in-the-Middle
-            optimisations applied before synthesising the answer
-        """
-        query_lower = query.lower()
+    def transcribe_audio(self, audio):
+        """Multi-tier speech recognition with Whisper neural engine and Google fallback."""
+        if not audio:
+            return ""
 
-        # ?[*] Instant local responses ????????????????????????????????????
-        if any(word in query_lower for word in ['time', 'clock']):
+        # 1. Try Google en-US (cleanest recognition for standard English, Western names, TV shows)
+        try:
+            text = self.recognizer.recognize_google(audio, language='en-US').strip()
+            if text:
+                return text
+        except Exception:
+            pass
+
+        # 2. Try OpenAI Whisper (local neural acoustic model, highly resilient to accents)
+        try:
+            text = self.recognizer.recognize_whisper(audio, model="tiny").strip()
+            if text:
+                return text
+        except Exception:
+            pass
+
+        # 3. Try Google en-IN (handles Indian regional pronunciations)
+        try:
+            text = self.recognizer.recognize_google(audio, language='en-IN').strip()
+            if text:
+                return text
+        except Exception:
+            pass
+
+        return ""
+
+    # ------------------------------------------------------------------
+    # PC ACTIONS & SYSTEM CONTROLS (Siri for PC)
+    # ------------------------------------------------------------------
+    def handle_pc_action(self, query):
+        """Executes PC automation commands or returns None if not a system command."""
+        q = query.lower().strip()
+
+        # 1. Time / Clock
+        if any(w in q for w in ['what time', 'current time', 'tell me the time', 'clock']):
             now = datetime.datetime.now()
-            return f"The time is {now.strftime('%I:%M %p')} right now."
+            return f"The current time is {now.strftime('%I:%M %p')}."
 
-        if any(word in query_lower for word in ['date', 'today']):
+        # 2. Date / Calendar
+        if any(w in q for w in ['what date', 'today date', "today's date", 'what day', 'current date']):
             now = datetime.datetime.now()
             return f"Today is {now.strftime('%A, %B %d, %Y')}."
 
-        # ?[*] System apps ???????????????????????????????????????????????
-        if 'notepad' in query_lower:
-            subprocess.Popen(['notepad.exe'], shell=True)
-            return "Opening Notepad!"
-        if 'calculator' in query_lower or 'calc' in query_lower:
-            subprocess.Popen(['calc.exe'], shell=True)
-            return "Calculator launched!"
-        if any(word in query_lower for word in ['edge', 'browser']):
-            webbrowser.open('edge://newtab')
-            return "Browser opening!"
-
-        # ?[*] Static knowledge base ?????????????????????????????????????
-        knowledge = {
-            "prime minister": "Narendra Modi is the Prime Minister of India.",
-            "president of usa": "Donald Trump is the President of the United States, serving his second term since 2025.",
-            "president of india": "Droupadi Murmu is the President of India, serving since July 2022.",
-            "president": "Donald Trump is the US President, serving his second term since 2025.",
-            "chatgpt": "ChatGPT is an artificial intelligence chatbot developed by OpenAI, launched in November 2022.",
-            "openai": "OpenAI is an AI research and deployment company that created ChatGPT and DALL-E.",
-            "genshin impact": "Genshin Impact was officially launched on September 28, 2020, by miHoYo.",
-            "python": "Python is a powerful programming language widely used for AI and software development.",
-            "india": "India is the world's most populous democracy, located in South Asia."
+        # 3. Application Launching
+        app_map = {
+            'notepad': (['notepad.exe'], "Notepad"),
+            'calculator': (['calc.exe'], "Calculator"),
+            'calc': (['calc.exe'], "Calculator"),
+            'chrome': (['start', 'chrome'], "Google Chrome"),
+            'edge': (['start', 'msedge'], "Microsoft Edge"),
+            'explorer': (['explorer.exe'], "File Explorer"),
+            'file explorer': (['explorer.exe'], "File Explorer"),
+            'task manager': (['taskmgr.exe'], "Task Manager"),
+            'settings': (['start', 'ms-settings:'], "Windows Settings"),
+            'terminal': (['wt.exe'], "Windows Terminal"),
+            'cmd': (['cmd.exe'], "Command Prompt"),
+            'command prompt': (['cmd.exe'], "Command Prompt"),
+            'vs code': (['code'], "VS Code"),
+            'vscode': (['code'], "VS Code"),
         }
-        # Sort knowledge by length of key descending so most specific matches first
-        sorted_keys = sorted(knowledge.keys(), key=len, reverse=True)
-        for key in sorted_keys:
-            if key in query_lower:
-                return knowledge[key]
 
-        # ?[*] Web search with Lost-in-the-Middle optimizations ??????????
-        raw_snippets = self.search_web(query)
+        if q.startswith("open ") or q.startswith("launch ") or q.startswith("start "):
+            target = re.sub(r'^(open|launch|start)\s+', '', q).strip()
 
-        if not raw_snippets:
-            return "I'm sorry, I couldn't find any information on the web for that query."
+            # Web shortcuts
+            web_shortcuts = {
+                'youtube': 'https://www.youtube.com',
+                'google': 'https://www.google.com',
+                'github': 'https://www.github.com',
+                'reddit': 'https://www.reddit.com',
+                'chatgpt': 'https://chatgpt.com',
+                'twitter': 'https://twitter.com',
+                'x': 'https://x.com',
+                'spotify': 'https://open.spotify.com'
+            }
+            if target in web_shortcuts:
+                webbrowser.open(web_shortcuts[target])
+                return f"Opening {target.capitalize()} in your browser."
 
-        # Apply research paper optimizations
-        ranked_snippets = self.rerank_snippets(query, raw_snippets)
-        
-        # Build and print the prompt (following paper principles)
-        prompt = self.build_query_aware_prompt(query, ranked_snippets)
-        print(f"\n--- [Lost-in-the-Middle Optimized Prompt] ---\n{prompt}\n---\n")
+            # System apps
+            for app_key, (cmd, name) in app_map.items():
+                if target == app_key or app_key in target:
+                    try:
+                        subprocess.Popen(cmd, shell=True)
+                        return f"Opening {name}."
+                    except Exception as e:
+                        return f"Failed to open {name}: {e}"
 
-        return self.synthesize_response(query, ranked_snippets)
+        return None
 
     # ------------------------------------------------------------------
-    # WAKE WORD
+    # WAKE & EXIT DETECTION
     # ------------------------------------------------------------------
     def is_wake_word(self, text):
-        return any(variant in text.lower().strip() for variant in WAKE_VARIANTS)
+        clean = text.lower().strip()
+        return any(variant in clean for variant in WAKE_VARIANTS)
+
+    def is_exit_phrase(self, text):
+        clean = text.lower().strip()
+        return any(phrase in clean for phrase in EXIT_PHRASES)
 
     # ------------------------------------------------------------------
-    # MAIN LOOP
+    # ACTIVE CONVERSATION SESSION LOOP
     # ------------------------------------------------------------------
-    def run(self):
-        """Professional VAD [*] continuous listening until silence"""
-        if not self.mic:
-            print("[*] No microphone!")
-            return
+    def run_conversation_session(self):
+        """
+        Active continuous conversational session.
+        Stays awake and listens continuously until the user says 'exit'.
+        """
+        print("\n>>> [SESSION STARTED] Chintu is in active conversation mode!")
+        self.bridge.visibility_changed.emit(True)
+        self.bridge.status_changed.emit("Listening...")
+        self.bridge.query_changed.emit("")
+        self.bridge.response_changed.emit("I'm listening, Sir. Ask anything or say 'exit'.")
+        
+        # Give Qt event loop a moment to paint the window on screen
+        time.sleep(0.15)
+        self.speak("I'm listening, Sir!")
 
-        print("[*] Chintu VAD Active!")
-        print("[*] Say 'CHINTU' then speak naturally (stops after ~4s silence)")
+        idle_silence_count = 0
+        max_idle_silence = 3  # ~20 seconds of absolute silence before auto-sleep
 
         while self.running:
+            self.bridge.status_changed.emit("Listening...")
+            print("\n[*] [ACTIVE LISTENING] Speak your question or say 'exit'...")
+
+            # Configure VAD for active dialog
+            self.recognizer.pause_threshold = 1.0
+            audio = None
+
             try:
                 with self.mic as source:
-                    # Phase 1: Wake word detection
-                    print("[*] (wake)... ", end="", flush=True)
-                    try:
-                        wake_audio = self.recognizer.listen(
-                            source, timeout=1.0, phrase_time_limit=2.5
-                        )
-                        wake_text = self.recognizer.recognize_google(
-                            wake_audio, language='en-IN'
-                        ).lower()
-                        print(f"'{wake_text}'")
-                    except sr.WaitTimeoutError:
-                        print(" [SILENCE]")
-                        continue
-                    except sr.UnknownValueError:
-                        print(" [?]")
-                        continue
-                    except Exception as e:
-                        print(f" [ERR: {e}]")
-                        continue
-
-                    if self.is_wake_word(wake_text):
-                        print("[*] ACTIVATED!")
-                        self.bridge.visibility_changed.emit(True)
-                        self.speak("Go ahead Sir!")
-
-                        # Phase 2: High-accuracy voice capture
-                        full_query = "" # RESET TO PREVENT REPEATING PREVIOUS ANSWER
-                        print("[LISTENING]... ", end="", flush=True)
-                        self.bridge.status_changed.emit("Listening...")
-                        
-                        # Adjust pause threshold to user's 2-second request
-                        self.recognizer.pause_threshold = 2.0
-                        
-                        try:
-                            # Listen for the whole phrase at once (more reliable VAD)
-                            audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=15)
-                            print("[PROCESSING]... ", end="", flush=True)
-                            self.bridge.status_changed.emit("Interpreting...")
-                            
-                            # Using Whisper for better interpretation (other technology)
-                            # Fallback to google if whisper is not available
-                            try:
-                                full_query = self.recognizer.recognize_whisper(audio, language="english", model="base").strip()
-                            except:
-                                full_query = self.recognizer.recognize_google(audio, language='en-IN').strip()
-                                
-                        except sr.WaitTimeoutError:
-                            full_query = ""
-                        except Exception as e:
-                            print(f"\n[ERROR] Interpretation error: {e}")
-                            full_query = ""
-                            
-                        print("\n[OK]")
-
-                        # Process full query
-                        if full_query:
-                            print(f"[*] Query: '{full_query}'")
-                            self.bridge.status_changed.emit("Processing...")
-                            response = self.get_smart_response(full_query)
-                            self.speak(response)
-                            print("[*] Response delivered!")
-                        else:
-                            self.speak("Yes Sir[*] What would you like?")
-
-                        self.bridge.visibility_changed.emit(False)
-                        self.bridge.status_changed.emit("STANDBY") # RESET UI STATUS
-                        print("\n[*] Listening for wake word...")
-                        time.sleep(1.5)
-
-                    else:
-                        print("(no)...")
-
+                    audio = self.recognizer.listen(source, timeout=6.5, phrase_time_limit=14.0)
+            except sr.WaitTimeoutError:
+                idle_silence_count += 1
+                print(f"[*] (Silence timeout {idle_silence_count}/{max_idle_silence})")
+                if idle_silence_count >= max_idle_silence:
+                    print("[*] Prolonged inactivity. Entering Sleep Mode.")
+                    self.bridge.status_changed.emit("Sleep Mode")
+                    self.bridge.response_changed.emit("Going to sleep now. Just say 'Hey Chintu' whenever you need me!")
+                    self.speak("Going to sleep now. Call me whenever you need me.")
+                    self.bridge.visibility_changed.emit(False)
+                    break
+                continue
             except Exception as e:
-                print(f"[LOOP ERROR] {e}")
+                print(f"[-] Mic capture error: {e}")
+                time.sleep(0.4)
+                continue
+
+            if not audio:
+                continue
+
+            # Context manager is completely released here!
+            self.bridge.status_changed.emit("Interpreting...")
+            print("[*] Processing speech (Whisper + Google)...")
+
+            user_speech = self.transcribe_audio(audio)
+            if not user_speech:
+                print("[-] Could not transcribe speech clearly. Listening again...")
+                continue
+
+            # Reset idle counter on speech
+            idle_silence_count = 0
+            print(f"[USER]: {user_speech}")
+            self.bridge.query_changed.emit(user_speech)
+
+            # Check for Exit Keyword
+            if self.is_exit_phrase(user_speech):
+                print("[*] Exit command detected! Transitioning to Sleep Mode...")
+                self.bridge.status_changed.emit("Going to sleep...")
+                self.bridge.response_changed.emit("Going to sleep now. Just say 'Hey Chintu' whenever you need me!")
+                self.speak("Going to sleep now. Have a great time!")
+                self.bridge.visibility_changed.emit(False)
+                break
+
+            # If user just repeats the wake word while already in active session
+            if self.is_wake_word(user_speech) and len(user_speech.split()) <= 2:
+                ack = "Yes Sir, I'm right here! Go ahead and ask your question."
+                self.bridge.response_changed.emit(ack)
+                self.speak(ack)
+                continue
+
+            # Process User Command / Question
+            self.bridge.status_changed.emit("Thinking...")
+
+            # 1. Check PC actions
+            response = self.handle_pc_action(user_speech)
+
+            # 2. If not PC action, search the web dynamically
+            if not response:
+                response = self.answer_web_query(user_speech)
+
+            # Update UI and Speak Response
+            self.bridge.response_changed.emit(response)
+            self.speak(response)
+
+            # Keep conversation alive!
+            print("[*] Done answering. Remaining active in conversation!")
+            time.sleep(0.4)
+
+        print("<<< [SESSION ENDED] Chintu returned to Standby Sleep Mode.\n")
+
+    # ------------------------------------------------------------------
+    # MAIN WAKE-WORD STANDBY LOOP (Sleep Mode)
+    # ------------------------------------------------------------------
+    def run(self):
+        """Continuously listens in background for wake word."""
+        if not self.mic:
+            print("[ERROR] No working microphone found!")
+            return
+
+        print("\n=======================================================")
+        print("  CHINTU VOICE ASSISTANT - SLEEP MODE ACTIVE")
+        print("  Say 'HEY CHINTU' to activate and start talking!")
+        print("=======================================================\n")
+
+        while self.running:
+            wake_detected = False
+            try:
+                # Capture short audio snippet
+                with self.mic as source:
+                    wake_audio = self.recognizer.listen(
+                        source, timeout=1.5, phrase_time_limit=3.0
+                    )
+                # Microphone context is closed here!
+
+                try:
+                    wake_text = self.recognizer.recognize_google(
+                        wake_audio, language='en-IN'
+                    ).lower()
+                    print(f"[*] (Standby heard): '{wake_text}'")
+                    if self.is_wake_word(wake_text):
+                        wake_detected = True
+                except (sr.WaitTimeoutError, sr.UnknownValueError):
+                    pass
+                except Exception:
+                    pass
+
+            except (sr.WaitTimeoutError, sr.UnknownValueError):
+                continue
+            except Exception as e:
+                time.sleep(0.5)
+                continue
+
+            if wake_detected:
+                print("\n[WAKE WORD DETECTED] Activating Chintu!")
+                self.run_conversation_session()
+                print("\n[STANDBY] Back in Sleep Mode. Listening for 'Hey Chintu'...")
                 time.sleep(1.0)
 
 
@@ -407,8 +564,9 @@ class ChintuAssistant:
 # ENTRY POINT
 # ----------------------------------------------------------------------
 def handle_exit(sig, frame):
-    print("\n[*] Chintu offline!")
+    print("\n[*] Exiting Chintu Assistant...")
     QApplication.quit()
+    sys.exit(0)
 
 
 if __name__ == "__main__":
@@ -418,21 +576,10 @@ if __name__ == "__main__":
     bridge = UIBridge()
     window = ChintuCoreUI(bridge)
 
-    print("[START] Launching Chintu VAD Assistant (Lost-in-the-Middle edition)...")
+    assistant = ChintuAssistant(bridge)
 
-    def startup():
-        try:
-            assistant = ChintuAssistant(bridge)
-            assistant.run()
-        except Exception as e:
-            print(f"[FAIL] Startup failed: {e}")
-            import traceback
-            traceback.print_exc()
+    # Run assistant background thread
+    assistant_thread = threading.Thread(target=assistant.run, daemon=True)
+    assistant_thread.start()
 
-    thread = threading.Thread(target=startup, daemon=True)
-    thread.start()
-
-    print("[READY] Chintu VAD ready!")
-    print("[LISTEN] Say 'CHINTU' then speak naturally!")
-    print("[INFO] Example: 'CHINTU what is the latest news about AI'")
     sys.exit(app.exec())

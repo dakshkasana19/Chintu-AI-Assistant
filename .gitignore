@@ -14,3 +14,6 @@ dist/
 
 # Local config
 .env
+
+# Media temp files
+*.mp3
