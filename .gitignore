@@ -12,8 +12,25 @@ build/
 dist/
 *.spec
 
-# Local config
+# Local config & secrets
 .env
 
-# Media temp files
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+
+# Package wheels & binary distributions
+*.whl
+
+# Media temp files & recordings
 *.mp3
+*.mp4
+*.wav
+auto_vision.png
+
+# Runtime memory and scratch
+auto_memory.json
+auto_episodic_memory.json
+app_registry.json
+scratch/
