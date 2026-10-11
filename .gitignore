@@ -14,6 +14,11 @@ dist/
 
 # Local config & secrets
 .env
+config.toml
+
+# Local runtime assets
+models/
+logs/
 
 # IDE and editor files
 .idea/

@@ -1,0 +1,14 @@
+[assistant]
+# Local-only defaults for Chintu.
+# Copy this file to config.toml and adjust values as needed.
+wake_words = ["chintu", "hey chintu", "ok chintu", "chinto", "chintoo"]
+exit_phrases = ["exit", "sleep", "go to sleep", "goodbye", "stop listening"]
+sample_rate_hz = 16000
+frame_size_ms = 30
+vad_start_silence_ms = 300
+vad_end_silence_ms = 700
+max_utterance_seconds = 15
+wake_confirm_window_seconds = 2.0
+logging_level = "INFO"
+log_dir = "logs"
+model_dir = "models"
