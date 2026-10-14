@@ -1,5 +1,20 @@
 # Development Log
 
+## Phase 0 — Foundation (2026-10-12; initially partial)
+
+- Added the `chintu` package, TOML-backed settings, runtime state tracking, rotating local logs, environment/model-directory diagnostics, and a no-cloud regression test. Removed legacy cloud integrations from the entry point and dependency manifest to establish a local-first baseline.
+- Kept runtime settings, downloaded models, and generated logs local and ignored. `llama-cpp-python` remained optional after its package installation failed on missing vendored source files.
+- Installed remaining dependencies individually after the full requirements install failed; resolved a `trafilatura` import issue by installing `lxml_html_clean`.
+- Validation: Python compilation passed; `tests/test_no_cloud.py` passed (1 test); doctor import checks passed. At this point the UI was only a bootstrap, the model downloader was a placeholder, and the voice pipeline was not migrated, so Phase 0 was recorded as partial.
+- Initial report: [Phase 0 results](../docs/results/phase0-2026-10-12.md).
+
+## Phase 0 — Foundation follow-up (2026-10-14; complete within approved scope)
+
+- Added Python 3.10 TOML compatibility with `tomli`, config and state validation, moved the PyQt overlay into `chintu/ui/`, expanded diagnostics, hardened the Windows launcher, documented setup, and added offscreen UI/config/state tests.
+- Kept voice, wake-word, ASR, retrieval, and TTS implementation deferred to their planned phases; Phase 0 completion covers the agreed foundation rather than an end-to-end assistant.
+- Resolved the Python 3.10 `tomllib` compatibility issue by using `tomli`. Focused validation passed: 7 tests, Python compilation, doctor import checks, and microphone device enumeration. Pylance reported no errors.
+- Report: [Phase 0 results](../docs/results/phase0-2026-10-14.md).
+
 ## Phase 1 — Audio capture + VAD (2026-10-15)
 
 - Added persistent 16 kHz mono microphone capture, bounded frame delivery, device recovery, and live RMS UI updates.
