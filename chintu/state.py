@@ -12,7 +12,31 @@ class AssistantState(str, Enum):
 
 
 class StateMachine:
-    """Simple state tracker for the assistant runtime."""
+    """Validate and track the voice assistant lifecycle."""
+
+    _ALLOWED_TRANSITIONS = {
+        AssistantState.SLEEPING: {
+            AssistantState.SLEEPING,
+            AssistantState.WAKE_CONFIRM,
+        },
+        AssistantState.WAKE_CONFIRM: {
+            AssistantState.LISTENING,
+            AssistantState.SLEEPING,
+        },
+        AssistantState.LISTENING: {
+            AssistantState.PROCESSING,
+            AssistantState.SLEEPING,
+        },
+        AssistantState.PROCESSING: {
+            AssistantState.SPEAKING,
+            AssistantState.LISTENING,
+            AssistantState.SLEEPING,
+        },
+        AssistantState.SPEAKING: {
+            AssistantState.LISTENING,
+            AssistantState.SLEEPING,
+        },
+    }
 
     def __init__(self, initial: AssistantState = AssistantState.SLEEPING):
         self._state = initial
@@ -22,6 +46,10 @@ class StateMachine:
         return self._state
 
     def transition(self, next_state: AssistantState) -> AssistantState:
+        if next_state not in self._ALLOWED_TRANSITIONS[self._state]:
+            raise ValueError(
+                f"Invalid assistant state transition: {self._state.value} -> {next_state.value}"
+            )
         self._state = next_state
         return self._state
 

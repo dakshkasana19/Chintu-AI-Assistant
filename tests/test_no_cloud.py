@@ -25,7 +25,18 @@ def test_no_cloud_or_keyed_dependencies() -> None:
             continue
         if path.resolve() == Path(__file__).resolve():
             continue
-        if any(part in {".git", "__pycache__", ".venv", "venv", "logs", "models"} for part in path.parts):
+        if any(
+            part in {
+                ".git",
+                ".pytest_cache",
+                "__pycache__",
+                ".venv",
+                "venv",
+                "logs",
+                "models",
+            }
+            for part in path.parts
+        ):
             continue
         try:
             text = path.read_text(encoding="utf-8")

@@ -1,6 +1,7 @@
 sounddevice>=0.4.7
 numpy>=1.26.0
 onnxruntime>=1.18.0
+webrtcvad-wheels>=2.0.14
 vosk>=0.3.45
 faster-whisper>=1.0.0
 piper-tts>=1.2.0
@@ -16,4 +17,5 @@ comtypes>=1.4.0
 screen-brightness-control>=0.8.0
 PyQt6>=6.6.0
 pytest>=8.0.0
+tomli>=2.0.1
 # Optional: llama-cpp-python>=0.3.0 for local LLM pipelines on compatible machines.

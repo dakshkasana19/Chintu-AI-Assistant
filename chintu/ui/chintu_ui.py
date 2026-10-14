@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 from PyQt6.QtWidgets import QMainWindow, QApplication
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QRectF
@@ -9,6 +8,7 @@ class UIBridge(QObject):
     query_changed = pyqtSignal(str)
     response_changed = pyqtSignal(str)
     visibility_changed = pyqtSignal(bool)
+    microphone_rms_changed = pyqtSignal(float)
 
 
 class ChintuCoreUI(QMainWindow):
@@ -49,12 +49,14 @@ class ChintuCoreUI(QMainWindow):
         self.status_text = "STANDBY"
         self.query_text = ""
         self.response_text = ""
+        self.microphone_rms = 0.0
         
         # Connect bridge signals
         self.bridge.visibility_changed.connect(self.toggle_visibility)
         self.bridge.status_changed.connect(self.update_status)
         self.bridge.query_changed.connect(self.update_query)
         self.bridge.response_changed.connect(self.update_response)
+        self.bridge.microphone_rms_changed.connect(self.update_microphone_rms)
 
         # 60 FPS animation timer
         self.timer = QTimer(self)
@@ -102,6 +104,10 @@ class ChintuCoreUI(QMainWindow):
 
     def update_response(self, text):
         self.response_text = text
+        self.update()
+
+    def update_microphone_rms(self, value):
+        self.microphone_rms = max(0.0, float(value))
         self.update()
 
     def update_animation(self):
@@ -193,9 +199,16 @@ class ChintuCoreUI(QMainWindow):
         for i in range(0, wave_width, 8):
             normalized_pos = (i - (wave_width / 2.0)) / (wave_width / 2.0)
             window = np.cos(normalized_pos * np.pi / 2.0) ** 2  # Hanning window for smooth edges
-            
+
             wave_h = np.sin((i + self.wave_offset) * 0.14) * np.cos((i - self.wave_offset) * 0.08)
-            bar_height = max(4.0, abs(wave_h) * 22.0 * self.amp_mult * window)
+            mic_scale = min(1.0, self.microphone_rms * 20.0)
+            if "LISTENING" in self.status_text:
+                bar_height = max(
+                    4.0,
+                    abs(wave_h) * 22.0 * (0.15 + 0.85 * mic_scale) * self.amp_mult * window,
+                )
+            else:
+                bar_height = max(4.0, abs(wave_h) * 22.0 * self.amp_mult * window)
             
             # Bar color interpolation: Cyan -> Magenta -> Blue
             t = (i / float(wave_width))

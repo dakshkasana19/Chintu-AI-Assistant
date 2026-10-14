@@ -3,11 +3,12 @@ from __future__ import annotations
 import logging
 from logging.handlers import RotatingFileHandler
 
-from .config import ROOT, load_config
+from .config import AssistantConfig, ROOT, load_config
 
 
-def configure_logging() -> logging.Logger:
-    config = load_config()
+def configure_logging(config: AssistantConfig | None = None) -> logging.Logger:
+    if config is None:
+        config = load_config()
     log_dir = ROOT / config.log_dir
     log_dir.mkdir(exist_ok=True, parents=True)
 

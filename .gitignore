@@ -18,7 +18,8 @@ config.toml
 
 # Local runtime assets
 models/
-logs/
+logs/*
+!logs/DEVLOG.md
 
 # IDE and editor files
 .idea/
