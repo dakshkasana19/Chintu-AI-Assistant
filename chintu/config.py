@@ -9,6 +9,7 @@ import tomli
 
 
 ROOT = Path(__file__).resolve().parent.parent
+VOSK_MODEL_NAME = "vosk-model-small-en-in-0.4"
 
 
 @dataclass
@@ -43,6 +44,8 @@ class AssistantConfig:
     webrtc_aggressiveness: int = 2
     audio_recovery_seconds: float = 1.0
     wake_confirm_window_seconds: float = 2.0
+    wake_sensitivity: float = 0.5
+    wake_cooldown_seconds: float = 2.0
     logging_level: str = "INFO"
     log_dir: str = "logs"
     model_dir: str = "models"
@@ -96,6 +99,8 @@ def load_config(config_path: str | Path | None = None) -> AssistantConfig:
             "webrtc_aggressiveness": 2,
             "audio_recovery_seconds": 1.0,
             "wake_confirm_window_seconds": 2.0,
+            "wake_sensitivity": 0.5,
+            "wake_cooldown_seconds": 2.0,
             "logging_level": "INFO",
             "log_dir": "logs",
             "model_dir": "models",
@@ -157,6 +162,15 @@ def load_config(config_path: str | Path | None = None) -> AssistantConfig:
                 defaults["assistant"]["wake_confirm_window_seconds"],
             )
         ),
+        wake_sensitivity=float(
+            assistant.get("wake_sensitivity", defaults["assistant"]["wake_sensitivity"])
+        ),
+        wake_cooldown_seconds=float(
+            assistant.get(
+                "wake_cooldown_seconds",
+                defaults["assistant"]["wake_cooldown_seconds"],
+            )
+        ),
         logging_level=logging_level,
         log_dir=str(assistant.get("log_dir", defaults["assistant"]["log_dir"])),
         model_dir=str(assistant.get("model_dir", defaults["assistant"]["model_dir"])),
@@ -178,4 +192,10 @@ def load_config(config_path: str | Path | None = None) -> AssistantConfig:
         raise ValueError("webrtc_aggressiveness must be between 0 and 3")
     if config.audio_recovery_seconds <= 0:
         raise ValueError("audio_recovery_seconds must be positive")
+    if config.wake_confirm_window_seconds <= 0:
+        raise ValueError("wake_confirm_window_seconds must be positive")
+    if not 0.0 <= config.wake_sensitivity <= 1.0:
+        raise ValueError("wake_sensitivity must be between 0 and 1")
+    if config.wake_cooldown_seconds < 0:
+        raise ValueError("wake_cooldown_seconds must not be negative")
     return config

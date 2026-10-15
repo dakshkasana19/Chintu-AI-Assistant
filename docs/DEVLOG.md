@@ -9,7 +9,7 @@
 - **Completion status:** Partial. This is not yet a completed Phase 0 implementation: the old voice-assistant behavior was replaced by a UI bootstrap rather than migrated, the app was not smoke-tested end-to-end, and the download script does not yet download models. These must be resolved before calling the phase complete.
 - **Evaluation report:** [Phase 0 results](results/phase0-2026-10-12.md).
 
-### Current project state
+### Project state after initial Phase 0 implementation (2026-10-12)
 
 - The repository has a Phase 0 PyQt UI/runtime foundation. The former wake-word, speech recognition, web-answer, Windows-action, and TTS flows are not currently wired into the runtime.
 - No persistent audio capture, VAD, local wake-word model, ASR model, Piper voice model, intent router, grounded RAG pipeline, or model download/checksum flow is implemented yet.
@@ -34,3 +34,12 @@
 - **Validation:** Full pytest suite passed (19 tests); changed Python modules compiled; doctor reported all required imports OK, detected the system microphone, selected Silero ONNX, and measured 0.13 ms median VAD/frame and 84.04 ms first microphone frame in a single run. Offscreen Qt runtime smoke activated real microphone capture and shut down with both the worker and stream stopped.
 - **Evaluation:** These are environment smoke measurements, not voice-quality benchmarks. No recorded-speech detection accuracy, false-alarm rate, or clipped-syllable evaluation was run. See [Phase 1 results](results/phase1-2026-10-15.md).
 - **Known limits:** There is no ASR or wake-word consumer yet, so VAD segments are logged but not transcribed. TTS is not implemented, so mic muting and barge-in handling are deferred to the TTS phase. Test manual wake phrases only after those later phases are connected.
+
+## 2026-10-16 — Phase 2: Local wake-word detection
+
+- **Built and why:** Added VAD-gated local wake detection using the restricted Indian-English Vosk grammar, followed by faster-whisper base confirmation over the last configured two seconds. Confirmed phrases transition the runtime from sleeping through wake confirmation into listening; command transcription remains out of scope.
+- **Key design decisions:** Defined a `WakeWordDetector` protocol with a Vosk/Whisper implementation; higher `wake_sensitivity` permits lower RapidFuzz match scores; cooldown suppresses repeat triggers. Wake inference runs on a bounded worker queue so CPU confirmation does not block microphone frame consumption. Runtime model loading is local-only.
+- **Problems and resolutions:** The official `vosk-model-small-en-in-0.4` archive was available at the Vosk model endpoint and is SHA-256 pinned in the downloader. The faster-whisper base model was already cached locally; the setup downloader now prepares it if absent. Focused tests exposed ambiguous phrase ties and an overly permissive partial-string score; longer phrase tie-breaking and word-boundary n-gram scoring now make sensitivity thresholds effective.
+- **Validation:** Full pytest suite passed (32 tests); Python compilation and wake-evaluation CLI checks passed. Real Vosk and cached faster-whisper initialized; a silence segment did not trigger; offscreen runtime opened the real microphone and shut down both workers and the stream cleanly.
+- **Evaluation:** `scripts/eval_wake.py` computes positive miss rate and negative false accepts per hour for labeled 16 kHz PCM16 WAV sets. No labeled speech set was available in this environment, so measured miss rate and false accepts/hour remain **N/A**. See [Phase 2 results](results/phase2-2026-10-16.md).
+- **Known limits:** This phase detects the wake phrase only. Follow-up command ASR, actions, retrieval, and TTS remain for later phases. A confirmed wake currently moves the state to listening and displays that command processing is not yet connected.

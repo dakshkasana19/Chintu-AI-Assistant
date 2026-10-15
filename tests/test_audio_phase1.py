@@ -273,6 +273,7 @@ def test_runtime_retries_after_microphone_failure(
             self.stop_calls += 1
 
     monkeypatch.setattr(entry, "VoiceActivityDetector", lambda _config: Detector())
+    monkeypatch.setattr(entry, "VoskWhisperWakeWordDetector", lambda _config: object())
     monkeypatch.setattr(entry, "AudioCapture", RetryingCapture)
 
     runtime._audio_loop()

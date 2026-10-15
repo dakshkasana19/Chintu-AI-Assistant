@@ -24,3 +24,12 @@
 - Smoke measurements: 0.13 ms median VAD inference per frame and 84.04 ms microphone open-to-first-frame. These are machine-specific measurements, not benchmarks.
 - Scope limit: segments are captured and logged but not transcribed or acted upon; wake-word detection, ASR, command routing, and TTS remain for later phases.
 - Detailed results: [Phase 1 report](../docs/results/phase1-2026-10-15.md).
+
+## Phase 2 — Local wake-word detection (2026-10-16)
+
+- Implemented VAD-gated Vosk grammar detection plus local faster-whisper confirmation on the last two seconds, fuzzy phonetic matching, configurable sensitivity, cooldown, and a bounded worker queue.
+- Added the checksum-pinned Indian-English Vosk model to the downloader; faster-whisper base is prepared locally. Runtime model loading is offline-only.
+- Added `scripts/eval_wake.py` to report positive miss rate and negative false accepts/hour on labeled 16 kHz PCM16 WAVs.
+- Verified full suite (32 tests), compilation, real Vosk/Whisper initialization and silence rejection, plus real microphone/runtime startup and clean shutdown.
+- No labeled speech set was available; measured wake miss and false-accept rates remain N/A.
+- Detailed results: [Phase 2 report](../docs/results/phase2-2026-10-16.md).

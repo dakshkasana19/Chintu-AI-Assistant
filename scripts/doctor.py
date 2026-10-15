@@ -60,7 +60,7 @@ def main() -> None:
     print(f"  {'-' * 20} {'-' * 24}")
     try:
         from chintu.audio import AudioCapture, VoiceActivityDetector
-        from chintu.config import load_config
+        from chintu.config import VOSK_MODEL_NAME, load_config
 
         config = load_config()
         vad = VoiceActivityDetector(config)
@@ -97,7 +97,14 @@ def main() -> None:
 
     print(f"\nlogs/: {'OK' if (root / 'logs').exists() else 'MISSING'}")
     print(f"models/: {'OK' if (root / 'models').exists() else 'MISSING'}")
-    print("  ASR/router/search/TTS: N/A (deferred to later phases)")
+    vosk_model = root / "models" / VOSK_MODEL_NAME / "am" / "final.mdl"
+    wake_setup = root / "models" / "wake_models.ready"
+    print(f"  Vosk wake model: {'OK' if vosk_model.is_file() else 'MISSING'}")
+    print(
+        "  Wake model setup: "
+        f"{'OK' if wake_setup.is_file() else 'incomplete (run scripts/download_models.py --wake)'}"
+    )
+    print("  Command ASR/actions/retrieval/TTS: deferred to later phases")
     if missing:
         print("\nInstall missing packages with: python -m pip install -r requirements.txt")
         raise SystemExit(1)

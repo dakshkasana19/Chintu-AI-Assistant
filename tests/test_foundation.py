@@ -17,6 +17,8 @@ def test_config_defaults_when_file_is_missing(tmp_path: Path) -> None:
     assert config.vad_preroll_ms == 300
     assert config.vad_start_speech_ms == 90
     assert config.vad_end_silence_ms == 700
+    assert config.wake_sensitivity == 0.5
+    assert config.wake_cooldown_seconds == 2.0
     assert config.logging_level == "INFO"
 
 
@@ -33,6 +35,27 @@ def test_config_loads_values_from_toml(tmp_path: Path) -> None:
     assert config.logging_level == "DEBUG"
     assert config.frame_size_ms == 30
     assert config.vad_end_silence_ms == 500
+
+
+def test_config_rejects_invalid_wake_sensitivity(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text("[assistant]\nwake_sensitivity = 1.5\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="wake_sensitivity must be between 0 and 1"):
+        load_config(config_path)
+
+
+def test_config_loads_wake_sensitivity_and_cooldown(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        "[assistant]\nwake_sensitivity = 0.8\nwake_cooldown_seconds = 4.5\n",
+        encoding="utf-8",
+    )
+
+    config = load_config(config_path)
+
+    assert config.wake_sensitivity == 0.8
+    assert config.wake_cooldown_seconds == 4.5
 
 
 def test_config_reports_invalid_toml(tmp_path: Path) -> None:
