@@ -267,4 +267,5 @@ def test_runtime_wakes_only_after_detector_confirmation() -> None:
 
     assert not worker.is_alive()
     assert runtime.state.state is AssistantState.LISTENING
-    assert "Wake word confirmed" in emissions
+    assert emissions.count(True) == 1
+    assert "Listening - wake word confirmed" in emissions

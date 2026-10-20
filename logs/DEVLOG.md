@@ -30,6 +30,7 @@
 - Implemented VAD-gated Vosk grammar detection plus local faster-whisper confirmation on the last two seconds, fuzzy phonetic matching, configurable sensitivity, cooldown, and a bounded worker queue.
 - Added the checksum-pinned Indian-English Vosk model to the downloader; faster-whisper base is prepared locally. Runtime model loading is offline-only.
 - Added `scripts/eval_wake.py` to report positive miss rate and negative false accepts/hour on labeled 16 kHz PCM16 WAVs.
-- Verified full suite (32 tests), compilation, real Vosk/Whisper initialization and silence rejection, plus real microphone/runtime startup and clean shutdown.
+- Verified full suite (33 tests), compilation, real Vosk/Whisper initialization and silence rejection, plus real microphone/runtime startup, hidden-until-confirmed behavior, and clean shutdown.
+- Corrected demo startup appearance: microphone and wake detector remain active in the background, while the overlay appears only after wake confirmation.
 - No labeled speech set was available; measured wake miss and false-accept rates remain N/A.
 - Detailed results: [Phase 2 report](../docs/results/phase2-2026-10-16.md).

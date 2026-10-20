@@ -17,6 +17,7 @@ def test_config_defaults_when_file_is_missing(tmp_path: Path) -> None:
     assert config.vad_preroll_ms == 300
     assert config.vad_start_speech_ms == 90
     assert config.vad_end_silence_ms == 700
+    assert config.silero_threshold == 0.5
     assert config.wake_sensitivity == 0.5
     assert config.wake_cooldown_seconds == 2.0
     assert config.logging_level == "INFO"
@@ -103,12 +104,37 @@ def test_runtime_ui_startup_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
 
     runtime.start()
     app.processEvents()
-    assert window.isVisible()
+    assert not window.isVisible()
     assert window.status_text == "STANDBY"
 
     runtime.stop()
     app.processEvents()
     assert not window.isVisible()
     assert runtime.state.state is AssistantState.SLEEPING
+    window.close()
+    app.processEvents()
+
+
+def test_ui_stays_in_standby_until_wake_confirmation(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+
+    from PyQt6.QtWidgets import QApplication
+
+    from chintu.ui import ChintuCoreUI, UIBridge
+
+    app = QApplication.instance() or QApplication([])
+    bridge = UIBridge()
+    window = ChintuCoreUI(bridge)
+
+    bridge.status_changed.emit("Standby - say Chintu")
+    app.processEvents()
+    assert window.status_text == "STANDBY - SAY CHINTU"
+    assert window.amp_mult == 1.2
+
+    bridge.status_changed.emit("Listening - wake word confirmed")
+    app.processEvents()
+    assert window.status_text == "LISTENING - WAKE WORD CONFIRMED"
+    assert window.amp_mult == 3.6
+
     window.close()
     app.processEvents()
