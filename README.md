@@ -22,13 +22,13 @@ The former voice pipeline was removed to eliminate cloud speech recognition, key
 Supported target: Windows 10/11 and Python 3.10–3.12. CPU-only operation is the design target; no GPU is required.
 
 1. Copy `config.toml.example` to `config.toml` if you want to customize local settings. `config.toml` is ignored by Git.
-2. Run `run_chintu.bat`. It creates a virtual environment, installs `requirements.txt`, downloads the local VAD/wake models when needed, and launches the desktop shell.
+2. Run `run_chintu.bat`. It creates a virtual environment, installs `requirements.txt`, downloads the local VAD/wake models when needed, and starts the assistant in the background. The overlay stays hidden until the wake phrase is confirmed.
 3. For a dependency/device report, run `venv\Scripts\python scripts\doctor.py`.
 4. Run the automated checks with `venv\Scripts\python -m pytest -q`.
 
 Phase 1 opens one persistent microphone stream, calculates live RMS for the UI, and detects speech boundaries. Silero VAD runs on CPU when its checksum-verified model exists; otherwise the local WebRTC VAD fallback is used. A bounded in-memory frame queue and pre-roll buffer preserve speech onset and prevent a slow consumer from growing memory without bound. The runtime retries the input stream after device errors.
 
-Phase 2 only sends VAD-delimited speech segments to a local Vosk recognizer restricted to `["chintu", "hey chintu", "ok chintu", "[unk]"]`. A candidate is confirmed by local faster-whisper base transcription over the segment's last two seconds, with RapidFuzz matching for configured wake phrases and phonetic variants. Confirmed wake phrases move the runtime into its listening state. `wake_sensitivity` ranges from `0.0` (strict) to `1.0` (more permissive); `wake_cooldown_seconds` prevents repeated triggers. This phase does not yet transcribe follow-up commands, perform actions, answer questions, or speak.
+Phase 2 continuously checks VAD-delimited speech segments for the wake phrase while the UI remains hidden and the runtime stays asleep. Segments are sent to a local Vosk recognizer restricted to `["chintu", "hey chintu", "ok chintu", "[unk]"]`. A candidate is confirmed by local faster-whisper base transcription over the segment's last two seconds, with RapidFuzz matching for configured wake phrases and phonetic variants. Only after confirmation does the overlay appear and the runtime enter its listening state. `wake_sensitivity` ranges from `0.0` (strict) to `1.0` (more permissive); `wake_cooldown_seconds` prevents repeated triggers. This phase does not yet transcribe follow-up commands, perform actions, answer questions, or speak.
 
 The Phase 2 model downloader fetches the Indian-English small Vosk model from its public model endpoint and verifies the pinned archive SHA-256 before safe extraction. It prepares faster-whisper base in the local Hugging Face model cache. Runtime confirmation uses `local_files_only=True`, so it does not fetch models while processing microphone audio. Use `python scripts/download_models.py --wake` to prepare these model assets manually.
 

@@ -40,7 +40,6 @@ class ChintuRuntime:
 
     def start(self) -> None:
         logger.info("Starting Chintu runtime")
-        self.bridge.visibility_changed.emit(True)
         self._transition_state(AssistantState.SLEEPING)
         self._audio_thread = threading.Thread(
             target=self._audio_loop,
@@ -112,9 +111,9 @@ class ChintuRuntime:
                 try:
                     self._capture.start()
                     detector.reset()
-                    self.bridge.status_changed.emit("Listening for Chintu...")
+                    self.bridge.status_changed.emit("Standby - say Chintu")
                     self.bridge.response_changed.emit(
-                        "Listening locally for the configured wake phrase."
+                        'Waiting for the wake phrase "Chintu".'
                     )
                     logger.info("Audio capture started; processing microphone frames")
                     while not self._stopping.is_set():
@@ -191,7 +190,8 @@ class ChintuRuntime:
                     self.state.transition(AssistantState.LISTENING)
                 else:
                     continue
-            self.bridge.status_changed.emit("Wake word confirmed")
+            self.bridge.visibility_changed.emit(True)
+            self.bridge.status_changed.emit("Listening - wake word confirmed")
             self.bridge.response_changed.emit(
                 "Wake word confirmed. Command processing will be connected in a later phase."
             )
