@@ -25,6 +25,17 @@ VOSK_MODEL_URL = f"https://alphacephei.com/vosk/models/{VOSK_MODEL_NAME}.zip"
 VOSK_MODEL_SHA256 = "20663dcac4d5cb783a579c54d98339344a688e4ec6e1b4a4b059fd1235454cc7"
 VOSK_ARCHIVE_FILENAME = f"{VOSK_MODEL_NAME}.zip"
 WHISPER_MODEL_NAME = "base"
+WHISPER_MODEL_SIZES = (
+    "tiny",
+    "tiny.en",
+    "base",
+    "base.en",
+    "small",
+    "small.en",
+    "medium",
+    "medium.en",
+    "large-v3",
+)
 logger = logging.getLogger("chintu.models")
 
 
@@ -142,25 +153,25 @@ def download_vosk_model(models_dir: Path) -> Path:
     return installed
 
 
-def download_whisper_model() -> None:
-    """Ensure the local faster-whisper confirmation model is present in its cache."""
+def download_whisper_model(model_name: str = WHISPER_MODEL_NAME) -> None:
+    """Ensure a faster-whisper model is present in its local cache."""
 
     from faster_whisper import WhisperModel
 
-    logger.info("Checking local faster-whisper %s confirmation model", WHISPER_MODEL_NAME)
+    logger.info("Checking local faster-whisper %s model", model_name)
     try:
         model = WhisperModel(
-            WHISPER_MODEL_NAME,
+            model_name,
             device="cpu",
             compute_type="int8",
             local_files_only=True,
         )
         del model
     except Exception:
-        logger.info("faster-whisper %s is not cached locally; downloading it", WHISPER_MODEL_NAME)
+        logger.info("faster-whisper %s is not cached locally; downloading it", model_name)
         try:
             model = WhisperModel(
-                WHISPER_MODEL_NAME,
+                model_name,
                 device="cpu",
                 compute_type="int8",
                 local_files_only=False,
@@ -169,14 +180,14 @@ def download_whisper_model() -> None:
         except Exception as exc:
             logger.error(
                 "Could not prepare faster-whisper %s model: %s",
-                WHISPER_MODEL_NAME,
+                model_name,
                 exc,
             )
             raise RuntimeError(
-                f"Could not prepare faster-whisper {WHISPER_MODEL_NAME}; "
+                f"Could not prepare faster-whisper {model_name}; "
                 "check model download access and available disk space"
             ) from exc
-    logger.info("faster-whisper %s model is ready", WHISPER_MODEL_NAME)
+    logger.info("faster-whisper %s model is ready", model_name)
 
 
 def main() -> None:
@@ -192,7 +203,13 @@ def main() -> None:
     parser.add_argument(
         "--wake",
         action="store_true",
-        help="Download the Indian English Vosk model and prepare faster-whisper base",
+        help="Download the Indian English Vosk model and prepare local faster-whisper models",
+    )
+    parser.add_argument(
+        "--whisper-model",
+        choices=WHISPER_MODEL_SIZES,
+        default=WHISPER_MODEL_NAME,
+        help="Command ASR model to prepare along with the required base wake model",
     )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -201,8 +218,10 @@ def main() -> None:
     if args.wake:
         download_vosk_model(args.models_dir)
         download_whisper_model()
+        if args.whisper_model != WHISPER_MODEL_NAME:
+            download_whisper_model(args.whisper_model)
         (args.models_dir / "wake_models.ready").write_text(
-            "Vosk Indian English small + faster-whisper base\n",
+            f"Vosk Indian English small + faster-whisper {args.whisper_model}\n",
             encoding="utf-8",
         )
         return

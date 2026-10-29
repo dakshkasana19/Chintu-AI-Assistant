@@ -91,6 +91,7 @@ def test_wake_detection_requires_vosk_candidate_and_whisper_confirmation() -> No
 
     result = detector.detect(make_segment())
 
+    assert detector.whisper_model is whisper
     assert result is not None
     assert result.phrase == "hey chintu"
     assert result.confirmation_score == 100.0
@@ -301,4 +302,4 @@ def test_runtime_wakes_only_after_detector_confirmation() -> None:
     assert not worker.is_alive()
     assert runtime.state.state is AssistantState.LISTENING
     assert emissions.count(True) == 1
-    assert "Listening - wake word confirmed" in emissions
+    assert "Command transcription unavailable" in emissions

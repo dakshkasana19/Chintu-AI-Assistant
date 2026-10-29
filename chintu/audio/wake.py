@@ -141,6 +141,12 @@ class VoskWhisperWakeWordDetector:
         self._whisper_model = whisper_model
         self._recognizer_factory = recognizer_factory
 
+    @property
+    def whisper_model(self) -> WhisperModel:
+        """Return the loaded Whisper instance for sharing with command ASR."""
+
+        return self._whisper_model
+
     def detect(self, segment: SpeechSegment) -> WakeWordMatch | None:
         if segment.sample_rate_hz != 16000:
             raise ValueError("Wake-word detection requires 16 kHz audio")

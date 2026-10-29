@@ -104,7 +104,8 @@ def main() -> None:
         "  Wake model setup: "
         f"{'OK' if wake_setup.is_file() else 'incomplete (run scripts/download_models.py --wake)'}"
     )
-    print("  Command ASR/actions/retrieval/TTS: deferred to later phases")
+    print("  Command ASR: implemented (local faster-whisper CPU/int8, VAD-delimited)")
+    print("  Intent routing/actions/retrieval/TTS: deferred to later phases")
     if missing:
         print("\nInstall missing packages with: python -m pip install -r requirements.txt")
         raise SystemExit(1)

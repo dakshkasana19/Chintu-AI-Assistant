@@ -42,7 +42,7 @@
 - **Problems and resolutions:** The official `vosk-model-small-en-in-0.4` archive was available at the Vosk model endpoint and is SHA-256 pinned in the downloader. The faster-whisper base model was already cached locally; the setup downloader now prepares it if absent. Focused tests exposed ambiguous phrase ties and an overly permissive partial-string score; longer phrase tie-breaking and word-boundary n-gram scoring now make sensitivity thresholds effective. The demo initially showed its overlay at startup, which looked activated despite the state remaining asleep; it now keeps audio/wake detection active in the background but hides the overlay until wake confirmation.
 - **Validation:** Full pytest suite passed (33 tests); Python compilation and wake-evaluation CLI checks passed. Real Vosk and cached faster-whisper initialized; a silence segment did not trigger; offscreen runtime kept the real microphone and wake worker active while the overlay remained hidden and state stayed `SLEEPING`, then showed the overlay after a simulated confirmed wake. Both workers and the stream shut down cleanly.
 - **Evaluation:** `scripts/eval_wake.py` computes positive miss rate and negative false accepts per hour for labeled 16 kHz PCM16 WAV sets. No labeled speech set was available in this environment, so measured miss rate and false accepts/hour remain **N/A**. See [Phase 2 results](results/phase2-2026-10-16.md).
-- **Known limits:** This phase detects the wake phrase only. Follow-up command ASR, actions, retrieval, and TTS remain for later phases. A confirmed wake currently moves the state to listening and displays that command processing is not yet connected.
+- **Known limits:** At phase completion, follow-up command ASR, actions, retrieval, and TTS were not yet connected. Phase 3 adds command ASR; actions, retrieval, and TTS remain for later phases.
 
 ## 2026-10-29 — Phase 2 Follow-up: Wake-word reliability
 
@@ -59,3 +59,18 @@
   - *Faster-Whisper confirmation*: Base model confirms trailing audio with RapidFuzz (`score=100.0`).
   - *Larger buffers*: Mic queue expanded to 64 frames (~1.9 s); `_wake_segments` to 4.
 - **Validation:** 34/34 tests passed, doctor OK (0.12 ms VAD), verified live on microphone.
+
+## 2026-10-29 — Phase 3: Command ASR
+
+- **Built and why:** Added local faster-whisper command transcription for new VAD-delimited speech captured after wake confirmation. The wake utterance stays in the wake queue and is not retranscribed as a command.
+- **Key design decisions:** CPU/int8 inference runs on a dedicated worker thread. The cached `base` Whisper model is shared with wake confirmation; an alternate configured command model is loaded separately and must be prepared explicitly. Raw transcript and normalized command remain separate, while transcript text is not written to runtime logs.
+- **Filtering and evaluation:** Empty/silent segments and likely hallucinations are rejected using no-speech probability, average log probability, and compression ratio. Added `scripts/eval_asr.py` to calculate raw and normalized-command WER over paired one-utterance 16 kHz mono PCM16 WAV/reference files without sending audio over the network.
+- **Validation:** Full suite passed (51 tests); final doctor run passed with 0.28 ms median VAD/frame and 373.82 ms microphone first frame on this machine. A synthetic low-level noise sample produced a likely “Chintu” hallucination, which was rejected at no-speech probability 0.65. This is a noise rejection smoke check, not a command accuracy evaluation.
+- **Limits and manual check:** No live command speech or labeled corpus has been evaluated, so command WER and live recognition accuracy remain N/A. After waking, say a separate command and inspect the raw/normalized transcript values; repeat with silence/background noise. Phase 4 is not started.
+
+## 2026-10-29 — Phase 4: Deterministic local actions
+
+- **Built and why:** Added a deterministic intent router and Windows action executor, then connected them to the post-wake command-ASR flow. General information requests are identified but deferred until retrieval is implemented.
+- **Supported actions:** App and HTTPS website launching, confirmed app closing and power operations, volume/brightness/media controls, workstation lock, screenshots, local time/date/day and system status, timers, alarms, and cancellation.
+- **Safety and limits:** Destructive intents require an explicit spoken confirmation. Shutdown and restart are scheduled with a delay. Unit tests use injected platform boundaries; live Windows action behavior and spoken-command accuracy have not been manually validated.
+- **Validation:** Full pytest suite passed (91 tests). No live Windows action execution was performed as part of this verification.

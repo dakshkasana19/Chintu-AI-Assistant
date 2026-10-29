@@ -15,6 +15,15 @@ audio_recovery_seconds = 1.0
 wake_confirm_window_seconds = 2.0
 wake_sensitivity = 0.5
 wake_cooldown_seconds = 2.0
+asr_model_size = "base"
+asr_no_speech_threshold = 0.6
+asr_log_prob_threshold = -1.0
+asr_compression_ratio_threshold = 2.4
 logging_level = "INFO"
 log_dir = "logs"
 model_dir = "models"
+
+# Optional Start Menu app names, paths, or Windows App IDs keyed by spoken alias.
+[assistant.app_aliases]
+# editor = "Visual Studio Code"
+# browser = "Microsoft Edge"

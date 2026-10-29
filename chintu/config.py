@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,17 @@ import tomli
 
 ROOT = Path(__file__).resolve().parent.parent
 VOSK_MODEL_NAME = "vosk-model-small-en-in-0.4"
+ASR_MODEL_SIZES = (
+    "tiny",
+    "tiny.en",
+    "base",
+    "base.en",
+    "small",
+    "small.en",
+    "medium",
+    "medium.en",
+    "large-v3",
+)
 
 
 @dataclass
@@ -34,6 +46,7 @@ class AssistantConfig:
             "stop listening",
         ]
     )
+    app_aliases: dict[str, str] = field(default_factory=dict)
     sample_rate_hz: int = 16000
     frame_size_ms: int = 30
     vad_preroll_ms: int = 300
@@ -46,6 +59,10 @@ class AssistantConfig:
     wake_confirm_window_seconds: float = 2.0
     wake_sensitivity: float = 0.5
     wake_cooldown_seconds: float = 2.0
+    asr_model_size: str = "base"
+    asr_no_speech_threshold: float = 0.6
+    asr_log_prob_threshold: float = -1.0
+    asr_compression_ratio_threshold: float = 2.4
     logging_level: str = "INFO"
     log_dir: str = "logs"
     model_dir: str = "models"
@@ -89,6 +106,7 @@ def load_config(config_path: str | Path | None = None) -> AssistantConfig:
                 "goodbye",
                 "stop listening",
             ],
+            "app_aliases": {},
             "sample_rate_hz": 16000,
             "frame_size_ms": 30,
             "vad_preroll_ms": 300,
@@ -101,6 +119,10 @@ def load_config(config_path: str | Path | None = None) -> AssistantConfig:
             "wake_confirm_window_seconds": 2.0,
             "wake_sensitivity": 0.5,
             "wake_cooldown_seconds": 2.0,
+            "asr_model_size": "base",
+            "asr_no_speech_threshold": 0.6,
+            "asr_log_prob_threshold": -1.0,
+            "asr_compression_ratio_threshold": 2.4,
             "logging_level": "INFO",
             "log_dir": "logs",
             "model_dir": "models",
@@ -129,6 +151,7 @@ def load_config(config_path: str | Path | None = None) -> AssistantConfig:
     config = AssistantConfig(
         wake_words=assistant.get("wake_words", defaults["assistant"]["wake_words"]),
         exit_phrases=assistant.get("exit_phrases", defaults["assistant"]["exit_phrases"]),
+        app_aliases=assistant.get("app_aliases", defaults["assistant"]["app_aliases"]),
         sample_rate_hz=int(assistant.get("sample_rate_hz", defaults["assistant"]["sample_rate_hz"])),
         frame_size_ms=int(assistant.get("frame_size_ms", defaults["assistant"]["frame_size_ms"])),
         vad_preroll_ms=int(assistant.get("vad_preroll_ms", defaults["assistant"]["vad_preroll_ms"])),
@@ -171,6 +194,27 @@ def load_config(config_path: str | Path | None = None) -> AssistantConfig:
                 defaults["assistant"]["wake_cooldown_seconds"],
             )
         ),
+        asr_model_size=str(
+            assistant.get("asr_model_size", defaults["assistant"]["asr_model_size"])
+        ),
+        asr_no_speech_threshold=float(
+            assistant.get(
+                "asr_no_speech_threshold",
+                defaults["assistant"]["asr_no_speech_threshold"],
+            )
+        ),
+        asr_log_prob_threshold=float(
+            assistant.get(
+                "asr_log_prob_threshold",
+                defaults["assistant"]["asr_log_prob_threshold"],
+            )
+        ),
+        asr_compression_ratio_threshold=float(
+            assistant.get(
+                "asr_compression_ratio_threshold",
+                defaults["assistant"]["asr_compression_ratio_threshold"],
+            )
+        ),
         logging_level=logging_level,
         log_dir=str(assistant.get("log_dir", defaults["assistant"]["log_dir"])),
         model_dir=str(assistant.get("model_dir", defaults["assistant"]["model_dir"])),
@@ -198,4 +242,31 @@ def load_config(config_path: str | Path | None = None) -> AssistantConfig:
         raise ValueError("wake_sensitivity must be between 0 and 1")
     if config.wake_cooldown_seconds < 0:
         raise ValueError("wake_cooldown_seconds must not be negative")
+    if config.asr_model_size not in ASR_MODEL_SIZES:
+        raise ValueError(
+            f"Unsupported asr_model_size {config.asr_model_size!r}; "
+            f"choose one of {', '.join(ASR_MODEL_SIZES)}"
+        )
+    if not isinstance(config.app_aliases, dict) or not all(
+        isinstance(alias, str)
+        and alias.strip()
+        and isinstance(target, str)
+        and target.strip()
+        for alias, target in config.app_aliases.items()
+    ):
+        raise ValueError("app_aliases must map non-empty names to non-empty app targets")
+    config.app_aliases = {
+        alias.strip(): target.strip()
+        for alias, target in config.app_aliases.items()
+    }
+    if not math.isfinite(config.asr_no_speech_threshold) or not (
+        0.0 <= config.asr_no_speech_threshold <= 1.0
+    ):
+        raise ValueError("asr_no_speech_threshold must be between 0 and 1")
+    if not math.isfinite(config.asr_log_prob_threshold):
+        raise ValueError("asr_log_prob_threshold must be finite")
+    if not math.isfinite(config.asr_compression_ratio_threshold) or (
+        config.asr_compression_ratio_threshold <= 0.0
+    ):
+        raise ValueError("asr_compression_ratio_threshold must be positive")
     return config

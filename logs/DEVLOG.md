@@ -51,4 +51,18 @@
   - *Larger buffers*: Mic queue expanded to 64 frames (~1.9 s); `_wake_segments` to 4.
 - **Validation:** 34/34 tests passed, doctor OK (0.12 ms VAD), verified live on microphone.
 
+## Phase 3 — Command ASR (2026-10-29)
 
+- Added local faster-whisper CPU/int8 transcription of VAD-delimited utterances captured after wake confirmation. The wake-word utterance itself is routed only to the wake detector.
+- Added a separate bounded command queue and ASR worker, preserving the raw transcript and normalized command in runtime memory/signals. Transcript text is not written to runtime logs.
+- Reused the cached `base` Whisper model with wake confirmation; other supported command model sizes can be prepared using `scripts/download_models.py --wake --whisper-model <size>`.
+- Added configurable no-speech, average log-probability, and compression-ratio rejection thresholds and `scripts/eval_asr.py` for raw and normalized-command WER over paired one-utterance WAV/reference files.
+- Validation: 51 tests passed; final doctor run passed (0.28 ms/frame median VAD, 373.82 ms microphone first frame); compilation and ASR evaluator CLI checks passed.
+- Synthetic low-level noise produced a “Chintu” hallucination in Whisper's raw result, rejected by the no-speech threshold (0.65). This is only a noise-rejection smoke check; no live command speech or labeled corpus has been evaluated.
+
+## 2026-10-29 — Phase 4: Deterministic local actions
+
+- Added a deterministic intent router and Windows action executor, connected to the post-wake command-ASR flow. General information requests are identified but deferred until retrieval is implemented.
+- Supports app and HTTPS website launching, confirmed app closing and power operations, volume/brightness/media controls, workstation lock, screenshots, local time/date/day and system status, timers, alarms, and cancellation.
+- Destructive intents require spoken confirmation; shutdown and restart are scheduled with a delay. Unit tests use injected platform boundaries; live Windows action behavior and spoken-command accuracy have not been manually validated.
+- Validation: Full pytest suite passed (91 tests). No live Windows action execution was performed as part of this verification.

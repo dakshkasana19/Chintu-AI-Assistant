@@ -20,6 +20,10 @@ def test_config_defaults_when_file_is_missing(tmp_path: Path) -> None:
     assert config.silero_threshold == 0.5
     assert config.wake_sensitivity == 0.5
     assert config.wake_cooldown_seconds == 2.0
+    assert config.asr_model_size == "base"
+    assert config.asr_no_speech_threshold == 0.6
+    assert config.asr_log_prob_threshold == -1.0
+    assert config.asr_compression_ratio_threshold == 2.4
     assert config.logging_level == "INFO"
 
 
@@ -57,6 +61,33 @@ def test_config_loads_wake_sensitivity_and_cooldown(tmp_path: Path) -> None:
 
     assert config.wake_sensitivity == 0.8
     assert config.wake_cooldown_seconds == 4.5
+
+
+def test_config_loads_nested_app_aliases(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        '[assistant]\n'
+        'wake_sensitivity = 0.6\n'
+        '[assistant.app_aliases]\n'
+        'editor = "Visual Studio Code"\n',
+        encoding="utf-8",
+    )
+
+    config = load_config(config_path)
+
+    assert config.wake_sensitivity == 0.6
+    assert config.app_aliases == {"editor": "Visual Studio Code"}
+
+
+def test_config_rejects_invalid_app_aliases(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        '[assistant.app_aliases]\neditor = 42\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="app_aliases must map"):
+        load_config(config_path)
 
 
 def test_config_reports_invalid_toml(tmp_path: Path) -> None:
