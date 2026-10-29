@@ -10,7 +10,13 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from chintu.audio import SpeechSegment, VoiceActivityDetector, VoskWhisperWakeWordDetector, WakeWordMatch
+from chintu.audio import (
+    SpeechSegment,
+    VoiceActivityDetector,
+    VoskWhisperWakeWordDetector,
+    WakeWordMatch,
+    VOSK_GRAMMAR,
+)
 from chintu.config import AssistantConfig
 from chintu.state import AssistantState
 from scripts import download_models
@@ -71,7 +77,7 @@ def test_wake_detection_requires_vosk_candidate_and_whisper_confirmation() -> No
 
     def make_recognizer(_model: object, sample_rate: int, grammar: str) -> FakeRecognizer:
         assert sample_rate == 16000
-        assert json.loads(grammar) == ["chintu", "hey chintu", "ok chintu", "[unk]"]
+        assert json.loads(grammar) == list(VOSK_GRAMMAR)
         recognizer = FakeRecognizer("hey chintu")
         recognizers.append(recognizer)
         return recognizer
@@ -94,6 +100,33 @@ def test_wake_detection_requires_vosk_candidate_and_whisper_confirmation() -> No
     assert whisper.audio.size == 2 * 16000
     assert len(recognizers) == 1
     assert len(recognizers[0].payload) == 2 * 16000 * 2
+
+
+def test_vosk_phonetic_candidate_triggers_whisper_confirmation() -> None:
+    config = AssistantConfig(wake_confirm_window_seconds=2.0)
+    whisper = FakeWhisper("chintu")
+    recognizers: list[FakeRecognizer] = []
+
+    def make_recognizer(_model: object, sample_rate: int, grammar: str) -> FakeRecognizer:
+        assert sample_rate == 16000
+        recognizer = FakeRecognizer("chin two")
+        recognizers.append(recognizer)
+        return recognizer
+
+    detector = VoskWhisperWakeWordDetector(
+        config,
+        vosk_model=object(),
+        whisper_model=whisper,
+        recognizer_factory=make_recognizer,
+    )
+
+    result = detector.detect(make_segment())
+
+    assert result is not None
+    assert result.phrase == "chintu"
+    assert result.confirmation_score == 100.0
+    assert result.vosk_transcript == "chin two"
+    assert result.whisper_transcript == "chintu"
 
 
 def test_vosk_rejection_skips_whisper_confirmation() -> None:

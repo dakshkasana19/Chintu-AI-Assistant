@@ -32,7 +32,7 @@ class ChintuRuntime:
         self._state_lock = threading.Lock()
         self._stopping = threading.Event()
         self._wake_stopping = threading.Event()
-        self._wake_segments: queue.Queue[SpeechSegment] = queue.Queue(maxsize=1)
+        self._wake_segments: queue.Queue[SpeechSegment] = queue.Queue(maxsize=4)
         self._capture: AudioCapture | None = None
         self._audio_thread: threading.Thread | None = None
         self._wake_thread: threading.Thread | None = None

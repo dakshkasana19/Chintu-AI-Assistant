@@ -27,7 +27,7 @@ class AudioCapture:
         self,
         sample_rate_hz: int = 16000,
         frame_size_ms: int = 30,
-        queue_frames: int = 12,
+        queue_frames: int = 64,
         device: int | str | None = None,
     ) -> None:
         if sample_rate_hz != 16000:

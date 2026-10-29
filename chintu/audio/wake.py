@@ -16,9 +16,42 @@ from .vad import SpeechSegment
 
 logger = logging.getLogger("chintu.audio.wake")
 
-VOSK_GRAMMAR = ("chintu", "hey chintu", "ok chintu", "[unk]")
+VOSK_GRAMMAR = (
+    "chintu",
+    "hey chintu",
+    "ok chintu",
+    "chin to",
+    "chin two",
+    "chin too",
+    "hey chin to",
+    "hey chin two",
+    "ok chin to",
+    "ok chin two",
+    "[unk]",
+)
+_VOSK_CANDIDATE_PHRASES = (
+    "chintu",
+    "hey chintu",
+    "ok chintu",
+    "chin to",
+    "chin two",
+    "chin too",
+    "hey chin to",
+    "hey chin two",
+    "ok chin to",
+    "ok chin two",
+)
 _PHONETIC_ALIASES = {
-    "chintu": ("chintu", "chintoo", "chinto", "chintou"),
+    "chintu": (
+        "chintu",
+        "chintoo",
+        "chinto",
+        "chintou",
+        "chinchu",
+        "chin two",
+        "chin to",
+        "chin too",
+    ),
 }
 
 
@@ -125,15 +158,15 @@ class VoskWhisperWakeWordDetector:
         recognizer = self._recognizer_factory(
             self._vosk_model,
             segment.sample_rate_hz,
-            json.dumps(VOSK_GRAMMAR),
+            json.dumps(list(VOSK_GRAMMAR)),
         )
         recognizer.AcceptWaveform(pcm16.tobytes())
         vosk_result = json.loads(recognizer.FinalResult())
         vosk_text = str(vosk_result.get("text", "")).strip()
         candidate_phrase = _match_wake_phrase(
             vosk_text,
-            ("chintu", "hey chintu", "ok chintu"),
-            threshold=85.0,
+            _VOSK_CANDIDATE_PHRASES,
+            threshold=80.0,
         )
         if candidate_phrase is None:
             return None

@@ -1,7 +1,9 @@
+import math
 import numpy as np
 from PyQt6.QtWidgets import QMainWindow, QApplication
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QRectF
-from PyQt6.QtGui import QPainter, QColor, QPen, QRadialGradient, QLinearGradient, QFont, QPainterPath
+from PyQt6.QtGui import QPainter, QColor, QPen
+
 
 class UIBridge(QObject):
     status_changed = pyqtSignal(str)
@@ -13,44 +15,54 @@ class UIBridge(QObject):
 
 class ChintuCoreUI(QMainWindow):
     """
-    Siri for PC - Iridescent Glowing Voice Assistant Interface
+    Joyful, minimalist floating voice assistant indicator.
     Features:
-      - Frameless translucent floating overlay
-      - Iridescent multi-layer pulsating Siri orb
-      - Dynamic audio frequency wave visualizer
-      - Live query transcription & spoken response HUD
-      - Status indicator pill (Listening, Searching, Speaking, Sleeping)
+      - Completely frameless, transparent floating ring (no box, no shadows, no borders).
+      - Warm buttercup yellow (#FFE550) dashed circular boundary with rounded caps.
+      - Positioned directly in the center of the screen.
+      - Smooth clockwise rotation while active.
+      - Expands outward dynamically when voice is detected, naturally widening dash gaps.
     """
-    def __init__(self, bridge):
+
+    COLOR = QColor("#FFE550")
+    NUM_DASHES = 16
+    DASH_ARC_LEN = 22.0
+    BASE_RADIUS = 142.5
+    MAX_EXPANSION = 45.0
+
+    def __init__(self, bridge: UIBridge):
         super().__init__()
         self.bridge = bridge
 
-        # Window configuration: frameless, always-on-top, translucent overlay
+        # Window configuration: frameless, no drop shadow, always-on-top, fully transparent overlay
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.Tool |
+            Qt.WindowType.NoDropShadowWindowHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-        
-        # Dimensions
-        self.width_ = 540
-        self.height_ = 580
+        self.setStyleSheet("background: transparent; border: none;")
+
+        # Canvas sized for the larger central circle
+        self.width_ = 440
+        self.height_ = 440
         self.resize(self.width_, self.height_)
 
-        # Position at bottom-center of primary screen with nice margin
+        # Position at dead center of screen
         self.reposition_window()
 
         # State & Animation variables
-        self.angle = 0
-        self.wave_offset = 0
+        self.angle = 0.0
+        self.expansion = 0.0
         self.pulse = 0.0
         self.amp_mult = 1.0
         self.status_text = "STANDBY"
         self.query_text = ""
         self.response_text = ""
         self.microphone_rms = 0.0
-        
+
         # Connect bridge signals
         self.bridge.visibility_changed.connect(self.toggle_visibility)
         self.bridge.status_changed.connect(self.update_status)
@@ -70,23 +82,22 @@ class ChintuCoreUI(QMainWindow):
         screen = QApplication.primaryScreen()
         if screen:
             screen_geo = screen.availableGeometry()
-            # Position at center-bottom of screen (Siri / Copilot style)
+            # Exact dead center of primary screen
             x = screen_geo.x() + int((screen_geo.width() - self.width_) / 2)
-            y = screen_geo.y() + screen_geo.height() - self.height_ - 40
+            y = screen_geo.y() + int((screen_geo.height() - self.height_) / 2)
             self.move(x, y)
 
-    def toggle_visibility(self, visible):
+    def toggle_visibility(self, visible: bool):
         if visible:
             self.reposition_window()
             self.show()
             self.raise_()
-            self.activateWindow()
-            self.pulse = 0.0
+            self.expansion = 0.0
             self.update()
         else:
             self.hide()
 
-    def update_status(self, text):
+    def update_status(self, text: str):
         self.status_text = text.upper()
         if "LISTENING" in self.status_text:
             self.amp_mult = 3.6
@@ -98,203 +109,63 @@ class ChintuCoreUI(QMainWindow):
             self.amp_mult = 1.2
         self.update()
 
-    def update_query(self, text):
+    def update_query(self, text: str):
         self.query_text = text
         self.update()
 
-    def update_response(self, text):
+    def update_response(self, text: str):
         self.response_text = text
         self.update()
 
-    def update_microphone_rms(self, value):
+    def update_microphone_rms(self, value: float):
         self.microphone_rms = max(0.0, float(value))
         self.update()
 
     def update_animation(self):
         if not self.isVisible():
             return
-        self.angle = (self.angle + 3) % 360
-        self.wave_offset = (self.wave_offset + 6) % 1000
-        self.pulse += 0.08
+        # Clockwise rotation: positive angle increment in standard Qt coordinates
+        self.angle = (self.angle + 1.2) % 360.0
+
+        # Voice expansion smoothing
+        target_boost = min(1.0, self.microphone_rms * 18.0)
+        self.expansion += (target_boost - self.expansion) * 0.25
+
         self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
 
         w = self.width()
         h = self.height()
         cx = w / 2.0
-        cy = 190.0  # Center of orb
+        cy = h / 2.0
 
-        # ------------------------------------------------------------------
-        # 1. Background Glass Card Container
-        # ------------------------------------------------------------------
-        card_path = QPainterPath()
-        card_rect = QRectF(15, 20, w - 30, h - 40)
-        card_path.addRoundedRect(card_rect, 28, 28)
+        # Dynamic radius based on microphone volume
+        radius = self.BASE_RADIUS + self.expansion * self.MAX_EXPANSION
 
-        # Translucent glass fill with subtle dark cyan gradient
-        bg_grad = QLinearGradient(0, 0, 0, h)
-        bg_grad.setColorAt(0.0, QColor(10, 15, 30, 215))
-        bg_grad.setColorAt(1.0, QColor(5, 8, 18, 240))
-        painter.fillPath(card_path, bg_grad)
+        # Fixed arc length in degrees decreases as radius expands, widening the gaps!
+        span_deg = (self.DASH_ARC_LEN / max(1.0, radius)) * (180.0 / math.pi)
 
-        # Subtle glowing glass border
-        border_pen = QPen(QColor(0, 200, 255, 60), 1.5)
-        painter.strokePath(card_path, border_pen)
+        # Flat buttercup yellow pen with friendly rounded caps (doubled thickness)
+        pen = QPen(self.COLOR, 11.0)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
 
-        # ------------------------------------------------------------------
-        # 2. Glowing Iridescent Siri Core Orb
-        # ------------------------------------------------------------------
-        pulse_val = 0.5 + 0.5 * np.sin(self.pulse)
-        orb_radius = 110 + pulse_val * 14 * (self.amp_mult / 2.0)
+        rect = QRectF(-radius, -radius, radius * 2.0, radius * 2.0)
+        span_16 = int(round(span_deg * 16))
+        step_deg = 360.0 / self.NUM_DASHES
 
-        # Deep ambient aura
-        aura_grad = QRadialGradient(cx, cy, orb_radius * 1.8)
-        aura_grad.setColorAt(0.0, QColor(0, 180, 255, int(70 + 40 * pulse_val)))
-        aura_grad.setColorAt(0.4, QColor(138, 43, 226, int(45 + 30 * pulse_val)))
-        aura_grad.setColorAt(0.8, QColor(255, 20, 147, int(20 + 20 * pulse_val)))
-        aura_grad.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.setBrush(aura_grad)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(QRectF(cx - orb_radius * 1.8, cy - orb_radius * 1.8, orb_radius * 3.6, orb_radius * 3.6))
+        painter.save()
+        painter.translate(cx, cy)
+        # Clockwise rotation
+        painter.rotate(self.angle)
 
-        # Iridescent Core
-        core_grad = QRadialGradient(cx - 15, cy - 15, orb_radius)
-        core_grad.setColorAt(0.0, QColor(220, 250, 255, 230))
-        core_grad.setColorAt(0.25, QColor(0, 220, 255, 200))
-        core_grad.setColorAt(0.6, QColor(120, 50, 255, 170))
-        core_grad.setColorAt(0.85, QColor(255, 0, 128, 140))
-        core_grad.setColorAt(1.0, QColor(10, 20, 60, 0))
-        painter.setBrush(core_grad)
-        painter.drawEllipse(QRectF(cx - orb_radius, cy - orb_radius, orb_radius * 2, orb_radius * 2))
+        for _ in range(self.NUM_DASHES):
+            # Qt drawArc uses 1/16ths of a degree; center dash around local 0
+            painter.drawArc(rect, int(round(-span_deg / 2.0 * 16)), span_16)
+            painter.rotate(step_deg)
 
-        # Multi-ring orbital rotation (Siri / AI resonance waves)
-        ring_colors = [
-            (QColor(0, 240, 255, 160), 1.0, 0),
-            (QColor(240, 90, 255, 140), -1.2, 45),
-            (QColor(80, 150, 255, 120), 0.8, 90),
-        ]
-        for color, speed, offset in ring_colors:
-            ring_pen = QPen(color, 2.2)
-            ring_pen.setDashPattern([6, 8])
-            painter.setPen(ring_pen)
-            painter.save()
-            painter.translate(cx, cy)
-            painter.rotate(self.angle * speed + offset)
-            r_scale = orb_radius * 0.95
-            painter.drawEllipse(QRectF(-r_scale, -r_scale * 0.65, r_scale * 2, r_scale * 1.3))
-            painter.restore()
-
-        # ------------------------------------------------------------------
-        # 3. Audio Frequency Waveform Visualizer
-        # ------------------------------------------------------------------
-        wave_y = cy + orb_radius + 20
-        wave_width = 280
-        start_x = cx - (wave_width / 2.0)
-        
-        painter.setPen(Qt.PenStyle.NoPen)
-        for i in range(0, wave_width, 8):
-            normalized_pos = (i - (wave_width / 2.0)) / (wave_width / 2.0)
-            window = np.cos(normalized_pos * np.pi / 2.0) ** 2  # Hanning window for smooth edges
-
-            wave_h = np.sin((i + self.wave_offset) * 0.14) * np.cos((i - self.wave_offset) * 0.08)
-            mic_scale = min(1.0, self.microphone_rms * 20.0)
-            if "LISTENING" in self.status_text:
-                bar_height = max(
-                    4.0,
-                    abs(wave_h) * 22.0 * (0.15 + 0.85 * mic_scale) * self.amp_mult * window,
-                )
-            else:
-                bar_height = max(4.0, abs(wave_h) * 22.0 * self.amp_mult * window)
-            
-            # Bar color interpolation: Cyan -> Magenta -> Blue
-            t = (i / float(wave_width))
-            r = int(0 + t * 220)
-            g = int(220 - t * 100)
-            b = 255
-            bar_color = QColor(r, g, b, int(160 + 80 * window))
-            
-            painter.setBrush(bar_color)
-            painter.drawRoundedRect(
-                QRectF(start_x + i, wave_y - (bar_height / 2.0), 4.5, bar_height),
-                2.0, 2.0
-            )
-
-        # ------------------------------------------------------------------
-        # 4. Status Badge Pill
-        # ------------------------------------------------------------------
-        badge_w = 170
-        badge_h = 28
-        badge_rect = QRectF(cx - (badge_w / 2.0), wave_y + 26, badge_w, badge_h)
-        
-        badge_path = QPainterPath()
-        badge_path.addRoundedRect(badge_rect, 14, 14)
-        
-        badge_bg = QColor(0, 180, 255, 30)
-        badge_border = QColor(0, 210, 255, 120)
-        if "LISTENING" in self.status_text:
-            badge_bg = QColor(0, 230, 180, 45)
-            badge_border = QColor(0, 255, 200, 170)
-        elif "SPEAKING" in self.status_text:
-            badge_bg = QColor(180, 60, 255, 45)
-            badge_border = QColor(210, 100, 255, 170)
-        elif "SEARCHING" in self.status_text:
-            badge_bg = QColor(255, 170, 0, 45)
-            badge_border = QColor(255, 190, 40, 170)
-
-        painter.fillPath(badge_path, badge_bg)
-        painter.setPen(QPen(badge_border, 1.2))
-        painter.strokePath(badge_path, painter.pen())
-
-        painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        painter.setPen(QColor(255, 255, 255, 230))
-        painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, f"● {self.status_text}")
-
-        # ------------------------------------------------------------------
-        # 5. Live Conversation HUD (Query & Response)
-        # ------------------------------------------------------------------
-        hud_top = wave_y + 64
-        hud_rect = QRectF(35, hud_top, w - 70, h - hud_top - 48)
-
-        # If user spoke something
-        if self.query_text:
-            painter.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-            painter.setPen(QColor(160, 220, 255, 230))
-            q_display = f'"{self.query_text}"'
-            if len(q_display) > 85:
-                q_display = q_display[:82] + "..."
-            painter.drawText(
-                QRectF(hud_rect.x(), hud_rect.y(), hud_rect.width(), 24),
-                Qt.AlignmentFlag.AlignCenter,
-                q_display
-            )
-
-        # Chintu response display
-        if self.response_text:
-            painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Normal))
-            painter.setPen(QColor(235, 240, 255, 215))
-            r_rect = QRectF(hud_rect.x(), hud_rect.y() + 28, hud_rect.width(), hud_rect.height() - 28)
-            painter.drawText(
-                r_rect,
-                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap,
-                self.response_text[:180] + ("..." if len(self.response_text) > 180 else "")
-            )
-        elif not self.query_text:
-            painter.setFont(QFont("Segoe UI", 10, QFont.Weight.Normal))
-            painter.setPen(QColor(160, 180, 210, 160))
-            painter.drawText(
-                hud_rect,
-                Qt.AlignmentFlag.AlignCenter,
-                "Speak naturally. Ask any question or command."
-            )
-
-        # ------------------------------------------------------------------
-        # 6. Bottom Sleep Mode Hint
-        # ------------------------------------------------------------------
-        painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Normal))
-        painter.setPen(QColor(130, 155, 190, 160))
-        hint_rect = QRectF(20, h - 38, w - 40, 20)
-        painter.drawText(hint_rect, Qt.AlignmentFlag.AlignCenter, 'Tip: Say "exit" or "sleep" to end conversation')
+        painter.restore()

@@ -2,7 +2,7 @@
 
 from .capture import AudioCapture, AudioCaptureError
 from .vad import SpeechSegment, VoiceActivityDetector, create_vad_backend
-from .wake import WakeWordDetector, WakeWordMatch, VoskWhisperWakeWordDetector
+from .wake import WakeWordDetector, WakeWordMatch, VoskWhisperWakeWordDetector, VOSK_GRAMMAR
 
 __all__ = [
     "AudioCapture",
@@ -12,5 +12,6 @@ __all__ = [
     "WakeWordDetector",
     "WakeWordMatch",
     "VoskWhisperWakeWordDetector",
+    "VOSK_GRAMMAR",
     "create_vad_backend",
 ]

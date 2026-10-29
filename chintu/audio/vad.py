@@ -25,12 +25,15 @@ class VADBackend(Protocol):
 
     def is_speech(self, frame: FloatSamples) -> bool: ...
 
+    def reset(self) -> None: ...
+
 
 class SileroOnnxVAD:
     """CPU-only Silero ONNX VAD adapter for 16 kHz mono frames."""
 
     name = "silero-onnx"
     _WINDOW_SAMPLES = 512
+    _CONTEXT_SAMPLES = 64
     _STATE_SHAPE = (2, 1, 128)
 
     def __init__(self, model_path: str | Path, threshold: float = 0.5) -> None:
@@ -41,30 +44,48 @@ class SileroOnnxVAD:
             str(model_path),
             providers=["CPUExecutionProvider"],
         )
-        self._state = np.zeros(self._STATE_SHAPE, dtype=np.float32)
         input_names = {item.name for item in self._session.get_inputs()}
         expected = {"input", "state", "sr"}
         if not expected.issubset(input_names):
             raise ValueError(
                 f"Unsupported Silero ONNX model inputs: {sorted(input_names)}"
             )
+        self.reset()
+
+    def reset(self) -> None:
+        self._state = np.zeros(self._STATE_SHAPE, dtype=np.float32)
+        self._context = np.zeros(self._CONTEXT_SAMPLES, dtype=np.float32)
+        self._buffer = np.zeros(0, dtype=np.float32)
+        self._last_speech = False
 
     def is_speech(self, frame: FloatSamples) -> bool:
         samples = np.asarray(frame, dtype=np.float32).reshape(-1)
-        if samples.size > self._WINDOW_SAMPLES:
-            raise ValueError("Silero VAD frame is longer than its 512-sample window")
-        if samples.size < self._WINDOW_SAMPLES:
-            samples = np.pad(samples, (0, self._WINDOW_SAMPLES - samples.size))
-        scores, next_state = self._session.run(
-            None,
-            {
-                "input": samples.reshape(1, -1),
-                "state": self._state,
-                "sr": np.asarray(16000, dtype=np.int64),
-            },
-        )
-        self._state = np.asarray(next_state, dtype=np.float32)
-        return float(np.asarray(scores).reshape(-1)[0]) >= self.threshold
+        self._buffer = np.concatenate([self._buffer, samples])
+
+        ran = False
+        speech_detected = False
+        while self._buffer.size >= self._WINDOW_SAMPLES:
+            chunk = self._buffer[:self._WINDOW_SAMPLES]
+            self._buffer = self._buffer[self._WINDOW_SAMPLES:]
+
+            x = np.concatenate([self._context, chunk]).reshape(1, -1)
+            scores, self._state = self._session.run(
+                None,
+                {
+                    "input": x,
+                    "state": self._state,
+                    "sr": np.asarray(16000, dtype=np.int64),
+                },
+            )
+            self._context = chunk[-self._CONTEXT_SAMPLES:]
+            score = float(scores[0, 0])
+            ran = True
+            if score >= self.threshold:
+                speech_detected = True
+
+        if ran:
+            self._last_speech = speech_detected
+        return self._last_speech
 
 
 class WebRTCVAD:
@@ -76,6 +97,9 @@ class WebRTCVAD:
         import webrtcvad
 
         self._vad = webrtcvad.Vad(aggressiveness)
+
+    def reset(self) -> None:
+        pass
 
     def is_speech(self, frame: FloatSamples) -> bool:
         samples = np.clip(np.asarray(frame, dtype=np.float32), -1.0, 1.0)
@@ -161,6 +185,8 @@ class VoiceActivityDetector:
         self._active_frames.clear()
         self._silence_frames = 0
         self._peak_rms = 0.0
+        if hasattr(self.backend, "reset"):
+            self.backend.reset()
 
     def process_frame(self, frame: FloatSamples) -> SpeechSegment | None:
         """Consume one frame and return a completed speech segment, if any."""
