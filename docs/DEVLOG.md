@@ -44,23 +44,18 @@
 - **Evaluation:** `scripts/eval_wake.py` computes positive miss rate and negative false accepts per hour for labeled 16 kHz PCM16 WAV sets. No labeled speech set was available in this environment, so measured miss rate and false accepts/hour remain **N/A**. See [Phase 2 results](results/phase2-2026-10-16.md).
 - **Known limits:** This phase detects the wake phrase only. Follow-up command ASR, actions, retrieval, and TTS remain for later phases. A confirmed wake currently moves the state to listening and displays that command processing is not yet connected.
 
-## 2026-10-29 — Phase 2 Follow-up: Wake-Word Reliability Diagnosis & Resolution
+## 2026-10-29 — Phase 2 Follow-up: Wake-word reliability
 
 - **Problems faced:**
-  - *Vosk vocabulary drop*: In controlled live testing, saying "Chintu" never triggered wake confirmation. Investigation revealed that the Kaldi dictionary in `vosk-model-small-en-in-0.4` had no lexical entry for the word `"chintu"`. When compiled into the recognizer FST with `["chintu", "hey chintu", "ok chintu", "[unk]"]`, Vosk logged `WARNING: Ignoring word missing in vocabulary: 'chintu'` and stripped the word completely. As a result, spoken "Chintu" was classified only as `[unk]` or `""`, and Stage 1 never produced a candidate match for Whisper confirmation.
-  - *Silero VAD v5 protocol mismatch*: In `chintu/audio/vad.py`, incoming 480-sample (30 ms) frames were zero-padded by 32 samples into 512 without the mandatory 64-sample context buffer (`(1, 576)` shape expected by Silero VAD v5). Injecting 32 samples of pure silence every 30 ms corrupted the recurrent hidden state and severely suppressed speech probabilities below 0.05, preventing `_active_frames` onset hysteresis from qualifying utterances.
-  - *Audio queue buffer starvation*: The capture queue was capped at 12 frames (360 ms) and `_wake_segments` was maxsize 1, causing frame drops whenever confirmation inference took ~400 ms.
-
-- **Failed attempts at fixing:**
-  - *Custom openWakeWord prototype (WSL)*: A custom openWakeWord "Chintu" model was trained in an isolated WSL environment outside this repo on synthetic Piper TTS data. The training run failed (accuracy 0.5, recall 0.0, false positives/hour 0.0; exported ONNX scores on held-out synthetic data were ~0.024 for both classes, detecting 0/250 positive examples at threshold 0.5). To reclaim disk space, the 17.28 GB ACAV100M feature file and ~204 MB checkpoint were deleted. The custom model was unviable and abandoned.
-  - *Direct audio recording comparison / DTW template matching*: Evaluated comparing live audio against reference WAV recordings of the wake word. Ruled out because raw waveform comparison fails under natural vocal variance (pitch, speed, loudness, room acoustics), and acoustic template matching (MFCC + Dynamic Time Warping) is brittle across background noise and volume differences.
-
-- **What actually worked:**
-  - *Silero VAD v5 continuous streaming*: Updated `SileroOnnxVAD` to buffer incoming audio and feed continuous 512-sample chunks prepended with a rolling 64-sample context buffer into ONNX without zero-padding distortion. Added backend state reset on stream interruptions. Speech probability scores on spoken voice immediately jumped from 0.004 to 0.999+.
-  - *Vosk phonetic decomposition*: Configured in-vocabulary phonetic phrases that Kaldi recognizes without warnings: `("chin to", "chin two", "chin too", "hey chin to", "hey chin two", "ok chin to", "ok chin two", "[unk]")`. In live testing, spoken "Chintu" is decoded by Vosk as `"[unk] chin two"`, reliably triggering Stage 1.
-  - *Faster-Whisper base confirmation*: `faster-whisper` base (int8 on CPU) transcribes the trailing 2-second window in ~430 ms. Expanded `_PHONETIC_ALIASES` with `"chin two"`, `"chin to"`, and `"chin too"`. RapidFuzz fuzzy matching confirmed the wake phrase with 100% confidence (`phrase=chintu score=100.0 Vosk='[unk] chin two' Whisper='Chintu'`).
-  - *Buffer sizing*: Increased `AudioCapture` default `queue_frames` from 12 to 64 (~1.9 s) and runtime `_wake_segments` to 4, eliminating frame drops.
-  - *Excluded `ANTIGRAVITY_HANDOFF.md` from `test_no_cloud.py`*.
-
-- **Validation:** 34/34 pytest tests passed; `scripts/doctor.py` reported OK with 0.12 ms/frame median VAD inference; live spoken verification confirmed reliable wake word detection.
-- **Completion status:** Phase 2 wake-word reliability is complete and verified. Ready to proceed to Phase 3 (Command ASR).
+  - *Vosk dictionary drop*: The word `"chintu"` was missing from `vosk-model-small-en-in-0.4`, so Vosk discarded it from the grammar and only output `[unk]`, never triggering Whisper.
+  - *Silero VAD suppression*: 30 ms frames were padded with 32 zeros without the required 64-sample context buffer, corrupting recurrent state and keeping speech scores < 0.05.
+  - *Small queue buffers*: 12-frame mic queue dropped audio during model inference.
+- **Failed attempts:**
+  - *Custom openWakeWord (WSL)*: Synthetic model failed training (0/250 detections; abandoned).
+  - *Audio waveform / DTW matching*: Ruled out due to natural pitch/volume variance.
+- **What worked:**
+  - *Silero VAD streaming*: Continuous 512 chunks + 64-sample context buffer without padding (speech scores jumped to 0.999+).
+  - *Phonetic Vosk*: Mapped in-vocabulary phrases (`"chin to"`, `"chin two"`), which Vosk detects cleanly without warnings.
+  - *Faster-Whisper confirmation*: Base model confirms trailing audio with RapidFuzz (`score=100.0`).
+  - *Larger buffers*: Mic queue expanded to 64 frames (~1.9 s); `_wake_segments` to 4.
+- **Validation:** 34/34 tests passed, doctor OK (0.12 ms VAD), verified live on microphone.
