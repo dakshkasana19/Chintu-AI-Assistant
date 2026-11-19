@@ -66,7 +66,7 @@
 - **Key design decisions:** CPU/int8 inference runs on a dedicated worker thread. The cached `base` Whisper model is shared with wake confirmation; an alternate configured command model is loaded separately and must be prepared explicitly. Raw transcript and normalized command remain separate, while transcript text is not written to runtime logs.
 - **Filtering and evaluation:** Empty/silent segments and likely hallucinations are rejected using no-speech probability, average log probability, and compression ratio. Added `scripts/eval_asr.py` to calculate raw and normalized-command WER over paired one-utterance 16 kHz mono PCM16 WAV/reference files without sending audio over the network.
 - **Validation:** Full suite passed (51 tests); final doctor run passed with 0.28 ms median VAD/frame and 373.82 ms microphone first frame on this machine. A synthetic low-level noise sample produced a likely “Chintu” hallucination, which was rejected at no-speech probability 0.65. This is a noise rejection smoke check, not a command accuracy evaluation.
-- **Limits and manual check:** No live command speech or labeled corpus has been evaluated, so command WER and live recognition accuracy remain N/A. After waking, say a separate command and inspect the raw/normalized transcript values; repeat with silence/background noise. Phase 4 is not started.
+- **Limits and manual check:** No live command speech or labeled corpus has been evaluated, so command WER and live recognition accuracy remain N/A. After waking, say a separate command and inspect the raw/normalized transcript values; repeat with silence/background noise. At Phase 3 completion, Phase 4 had not started.
 
 ## 2026-10-29 — Phase 4: Deterministic local actions
 
@@ -74,3 +74,26 @@
 - **Supported actions:** App and HTTPS website launching, confirmed app closing and power operations, volume/brightness/media controls, workstation lock, screenshots, local time/date/day and system status, timers, alarms, and cancellation.
 - **Safety and limits:** Destructive intents require an explicit spoken confirmation. Shutdown and restart are scheduled with a delay. Unit tests use injected platform boundaries; live Windows action behavior and spoken-command accuracy have not been manually validated.
 - **Validation:** Full pytest suite passed (91 tests). No live Windows action execution was performed as part of this verification.
+- **Repository update:** Phase 3 and Phase 4 changes were pushed to `origin/master` in commit `ea56c60` (`Add local command ASR and deterministic actions`).
+
+## 2026-11-19 — Phase 5: Offline Speech Output (TTS)
+
+- **Built and why:** Added local offline text-to-speech synthesis in `chintu/tts.py` supporting both the Piper neural voice engine (`piper-tts`) and `pyttsx3` (Windows SAPI5) fallback. Enables voice responses for command confirmations, system actions, timer notifications, and information answers.
+- **Key design decisions:** Text is normalized via `TTSNormalizer` to expand currencies, units, percentages, decimal numbers, and common abbreviations, while stripping markdown and URLs. Playback streams 16-bit/float32 PCM audio in 50 ms chunks via `sounddevice.OutputStream`.
+- **Barge-in & thread safety:** VAD-confirmed speech onset interrupts audio output before the utterance finishes; capture continues so the completed segment can reach command ASR. Synthesis and playback run on a dedicated worker thread, keeping the Qt GUI and capture threads responsive.
+- **Setup and validation:** The Piper voice model is optional and can be prepared with `python scripts/download_models.py --tts`; when absent, the configured auto engine uses the Windows `pyttsx3` fallback. Playback lifecycle tests use a mock engine/output stream, so real device playback remains to be manually tested. No cloud patterns are allowed by `test_no_cloud.py`.
+
+## 2026-11-19 — Phase 6: Grounded Retrieval and Answer Verification (RAG)
+
+- **Built and why:** Added keyless factual question answering in `chintu/rag/` to answer general information and weather inquiries.
+- **Retrieval sources:** Integrates keyless Open-Meteo API for real-time weather and geocoding, Wikipedia REST API for encyclopedic entity summaries, and DuckDuckGo (`ddgs`) for public web search snippets.
+- **Ranking & verification:** Extracted passages are ranked via Okapi BM25 (`BM25Reranker`). The verifier uses lexical query-term coverage and returns source-extractive text or abstains. This is a relevance filter, not semantic fact-checking, and cannot guarantee factual accuracy.
+- **Integration:** Wired into `chintu_assistant.py` for intent `information_request`. Verified answers include a source title in the spoken response. Weather requests without an explicit location ask for one; failed or incomplete weather responses do not get replaced with assumed conditions.
+- **Validation:** Unit and mocked pipeline tests cover API parsing, ranking, abstention, and runtime attribution. A generic live smoke query returned a Wikipedia result; a Paris weather query returned Open-Meteo data. This does not constitute a factual-accuracy benchmark.
+
+## 2026-11-19 — Phase 5/6 reliability follow-up
+
+- Interrupted TTS at the point VAD confirms speech onset rather than waiting until its end-of-utterance hangover. Barge-in no longer applies the post-playback echo gate to the user's captured command.
+- Confirmed local `pyttsx3` synthesis produces finite 22.05 kHz samples on this machine; real output-device playback remains untested. The Piper model is not present and remains an optional download.
+- Removed raw transcript, query, answer, and synthesized speech content from application logs; diagnostics retain operational metadata without conversation text.
+- Added validation for incomplete weather responses, ask-for-location behavior instead of a default city, and runtime source attribution. The approved overlay file was left unchanged.

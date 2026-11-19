@@ -25,6 +25,15 @@ VOSK_MODEL_URL = f"https://alphacephei.com/vosk/models/{VOSK_MODEL_NAME}.zip"
 VOSK_MODEL_SHA256 = "20663dcac4d5cb783a579c54d98339344a688e4ec6e1b4a4b059fd1235454cc7"
 VOSK_ARCHIVE_FILENAME = f"{VOSK_MODEL_NAME}.zip"
 WHISPER_MODEL_NAME = "base"
+PIPER_VOICE_NAME = "en_US-lessac-medium"
+PIPER_ONNX_FILENAME = f"{PIPER_VOICE_NAME}.onnx"
+PIPER_JSON_FILENAME = f"{PIPER_VOICE_NAME}.onnx.json"
+PIPER_ONNX_URL = (
+    f"https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/{PIPER_ONNX_FILENAME}"
+)
+PIPER_JSON_URL = (
+    f"https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/{PIPER_JSON_FILENAME}"
+)
 WHISPER_MODEL_SIZES = (
     "tiny",
     "tiny.en",
@@ -190,6 +199,42 @@ def download_whisper_model(model_name: str = WHISPER_MODEL_NAME) -> None:
     logger.info("faster-whisper %s model is ready", model_name)
 
 
+def download_piper_model(models_dir: Path) -> Path:
+    """Download the Piper neural TTS voice model and its JSON configuration."""
+    piper_dir = models_dir / "piper"
+    piper_dir.mkdir(parents=True, exist_ok=True)
+    onnx_dest = piper_dir / PIPER_ONNX_FILENAME
+    json_dest = piper_dir / PIPER_JSON_FILENAME
+
+    if not json_dest.is_file():
+        logger.info("Downloading Piper config: %s", PIPER_JSON_URL)
+        headers = {"User-Agent": "Chintu-AI/1.0"}
+        req = urllib.request.Request(PIPER_JSON_URL, headers=headers)
+        config_partial = json_dest.with_suffix(json_dest.suffix + ".part")
+        with urllib.request.urlopen(req, timeout=30) as resp, config_partial.open("wb") as out:
+            out.write(resp.read())
+        os.replace(config_partial, json_dest)
+        logger.info("Downloaded Piper config: %s", json_dest)
+
+    if not onnx_dest.is_file():
+        logger.info("Downloading Piper ONNX model: %s", PIPER_ONNX_URL)
+        partial_path = onnx_dest.with_suffix(".onnx.part")
+        headers = {"User-Agent": "Chintu-AI/1.0"}
+        req = urllib.request.Request(PIPER_ONNX_URL, headers=headers)
+        with urllib.request.urlopen(req, timeout=60) as resp, partial_path.open("wb") as out:
+            while True:
+                chunk = resp.read(1024 * 1024)
+                if not chunk:
+                    break
+                out.write(chunk)
+        os.replace(partial_path, onnx_dest)
+        logger.info("Downloaded Piper ONNX model: %s", onnx_dest)
+    else:
+        logger.info("Piper ONNX model already exists: %s", onnx_dest)
+
+    return onnx_dest
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Download the local audio models required by Chintu."
@@ -204,6 +249,11 @@ def main() -> None:
         "--wake",
         action="store_true",
         help="Download the Indian English Vosk model and prepare local faster-whisper models",
+    )
+    parser.add_argument(
+        "--tts",
+        action="store_true",
+        help="Download the offline Piper neural voice model (en_US-lessac-medium)",
     )
     parser.add_argument(
         "--whisper-model",
@@ -224,6 +274,10 @@ def main() -> None:
             f"Vosk Indian English small + faster-whisper {args.whisper_model}\n",
             encoding="utf-8",
         )
+        return
+
+    if args.tts:
+        download_piper_model(args.models_dir)
         return
 
     destination = args.models_dir / MODEL_FILENAME

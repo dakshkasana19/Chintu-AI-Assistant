@@ -96,8 +96,8 @@ def test_command_asr_uses_local_cpu_model_and_returns_raw_and_normalized_text() 
     assert model.options["beam_size"] == 5
     assert model.options["condition_on_previous_text"] is False
     assert model.options["vad_filter"] is False
-    assert model.options["initial_prompt"] == "Chintu"
-    assert model.options["hotwords"] == "Chintu"
+    assert "initial_prompt" not in model.options
+    assert "hotwords" not in model.options
     assert model.options["no_speech_threshold"] == 0.6
 
 

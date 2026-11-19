@@ -92,6 +92,7 @@ class ChintuCoreUI(QMainWindow):
             self.reposition_window()
             self.show()
             self.raise_()
+            self.activateWindow()
             self.expansion = 0.0
             self.update()
         else:

@@ -63,6 +63,16 @@ class AssistantConfig:
     asr_no_speech_threshold: float = 0.6
     asr_log_prob_threshold: float = -1.0
     asr_compression_ratio_threshold: float = 2.4
+    tts_enabled: bool = True
+    tts_engine: str = "auto"
+    tts_piper_model: str = "en_US-lessac-medium.onnx"
+    tts_voice_id: str = ""
+    tts_rate: int = 175
+    tts_volume: float = 1.0
+    rag_enabled: bool = True
+    rag_max_results: int = 4
+    rag_timeout_seconds: float = 6.0
+    rag_min_confidence: float = 0.25
     logging_level: str = "INFO"
     log_dir: str = "logs"
     model_dir: str = "models"
@@ -123,6 +133,16 @@ def load_config(config_path: str | Path | None = None) -> AssistantConfig:
             "asr_no_speech_threshold": 0.6,
             "asr_log_prob_threshold": -1.0,
             "asr_compression_ratio_threshold": 2.4,
+            "tts_enabled": True,
+            "tts_engine": "auto",
+            "tts_piper_model": "en_US-lessac-medium.onnx",
+            "tts_voice_id": "",
+            "tts_rate": 175,
+            "tts_volume": 1.0,
+            "rag_enabled": True,
+            "rag_max_results": 4,
+            "rag_timeout_seconds": 6.0,
+            "rag_min_confidence": 0.25,
             "logging_level": "INFO",
             "log_dir": "logs",
             "model_dir": "models",
@@ -143,6 +163,12 @@ def load_config(config_path: str | Path | None = None) -> AssistantConfig:
     assistant = data.get("assistant", {})
     if not isinstance(assistant, dict):
         raise ValueError(f"'assistant' in {config_file} must be a TOML table")
+
+    def boolean_setting(name: str) -> bool:
+        value = assistant.get(name, defaults["assistant"][name])
+        if not isinstance(value, bool):
+            raise ValueError(f"{name} must be a boolean in {config_file}")
+        return value
 
     logging_level = str(assistant.get("logging_level", defaults["assistant"]["logging_level"])).upper()
     if not isinstance(getattr(logging, logging_level, None), int):
@@ -215,6 +241,32 @@ def load_config(config_path: str | Path | None = None) -> AssistantConfig:
                 defaults["assistant"]["asr_compression_ratio_threshold"],
             )
         ),
+        tts_enabled=boolean_setting("tts_enabled"),
+        tts_engine=str(
+            assistant.get("tts_engine", defaults["assistant"]["tts_engine"])
+        ).lower(),
+        tts_piper_model=str(
+            assistant.get("tts_piper_model", defaults["assistant"]["tts_piper_model"])
+        ),
+        tts_voice_id=str(
+            assistant.get("tts_voice_id", defaults["assistant"]["tts_voice_id"])
+        ),
+        tts_rate=int(
+            assistant.get("tts_rate", defaults["assistant"]["tts_rate"])
+        ),
+        tts_volume=float(
+            assistant.get("tts_volume", defaults["assistant"]["tts_volume"])
+        ),
+        rag_enabled=boolean_setting("rag_enabled"),
+        rag_max_results=int(
+            assistant.get("rag_max_results", defaults["assistant"]["rag_max_results"])
+        ),
+        rag_timeout_seconds=float(
+            assistant.get("rag_timeout_seconds", defaults["assistant"]["rag_timeout_seconds"])
+        ),
+        rag_min_confidence=float(
+            assistant.get("rag_min_confidence", defaults["assistant"]["rag_min_confidence"])
+        ),
         logging_level=logging_level,
         log_dir=str(assistant.get("log_dir", defaults["assistant"]["log_dir"])),
         model_dir=str(assistant.get("model_dir", defaults["assistant"]["model_dir"])),
@@ -269,4 +321,18 @@ def load_config(config_path: str | Path | None = None) -> AssistantConfig:
         config.asr_compression_ratio_threshold <= 0.0
     ):
         raise ValueError("asr_compression_ratio_threshold must be positive")
+    if config.tts_engine not in {"auto", "piper", "pyttsx3"}:
+        raise ValueError(
+            f"Unsupported tts_engine {config.tts_engine!r}; choose 'auto', 'piper', or 'pyttsx3'"
+        )
+    if not (50 <= config.tts_rate <= 400):
+        raise ValueError("tts_rate must be between 50 and 400")
+    if not math.isfinite(config.tts_volume) or not (0.0 <= config.tts_volume <= 1.0):
+        raise ValueError("tts_volume must be between 0.0 and 1.0")
+    if config.rag_max_results <= 0:
+        raise ValueError("rag_max_results must be positive")
+    if not math.isfinite(config.rag_timeout_seconds) or config.rag_timeout_seconds <= 0.0:
+        raise ValueError("rag_timeout_seconds must be finite and positive")
+    if not math.isfinite(config.rag_min_confidence) or not (0.0 <= config.rag_min_confidence <= 1.0):
+        raise ValueError("rag_min_confidence must be between 0.0 and 1.0")
     return config

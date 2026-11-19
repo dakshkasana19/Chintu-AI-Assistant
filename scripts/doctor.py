@@ -105,7 +105,27 @@ def main() -> None:
         f"{'OK' if wake_setup.is_file() else 'incomplete (run scripts/download_models.py --wake)'}"
     )
     print("  Command ASR: implemented (local faster-whisper CPU/int8, VAD-delimited)")
-    print("  Intent routing/actions/retrieval/TTS: deferred to later phases")
+    print("  Deterministic actions: implemented (Windows apps, media, volume, system status, timers)")
+    print("  Offline TTS: implemented (Piper neural voice with pyttsx3 fallback)")
+    from chintu.config import load_config
+
+    config = load_config()
+    piper_model = config.model_path / "piper" / config.tts_piper_model
+    if not piper_model.is_file():
+        piper_model = config.model_path / config.tts_piper_model
+    if piper_model.is_file():
+        print(f"  Piper voice model: OK ({piper_model})")
+    else:
+        fallback_note = (
+            "auto will use the pyttsx3 fallback"
+            if config.tts_engine == "auto"
+            else f"configured TTS engine is {config.tts_engine}"
+        )
+        print(
+            "  Piper voice model: MISSING "
+            f"({fallback_note}; run scripts/download_models.py --tts for Piper)"
+        )
+    print("  Grounded RAG: implemented (keyless Wikipedia, Open-Meteo, DuckDuckGo + BM25 verifier)")
     if missing:
         print("\nInstall missing packages with: python -m pip install -r requirements.txt")
         raise SystemExit(1)

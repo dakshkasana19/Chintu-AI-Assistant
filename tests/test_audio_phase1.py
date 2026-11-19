@@ -51,8 +51,11 @@ def test_vad_rejects_short_noise_and_captures_pre_roll_and_hangover() -> None:
 
     for _ in range(4):
         assert detector.process_frame(silence) is None
+    assert not detector.speech_active
     assert detector.process_frame(speech) is None
+    assert not detector.speech_active
     assert detector.process_frame(speech) is None
+    assert detector.speech_active
     assert detector.process_frame(speech) is None
 
     assert detector.process_frame(silence) is None
@@ -65,6 +68,7 @@ def test_vad_rejects_short_noise_and_captures_pre_roll_and_hangover() -> None:
     assert np.all(segment.samples[: detector.frame_samples] == 0.0)
     assert np.allclose(segment.samples[detector.frame_samples * 3], 0.4)
     assert segment.peak_rms == pytest.approx(0.4)
+    assert not detector.speech_active
 
 
 def test_vad_hysteresis_discards_short_speech_noise() -> None:
@@ -246,6 +250,10 @@ def test_runtime_retries_after_microphone_failure(
 
     class Detector:
         backend_name = "test"
+
+        @property
+        def speech_active(self) -> bool:
+            return False
 
         def reset(self) -> None:
             pass

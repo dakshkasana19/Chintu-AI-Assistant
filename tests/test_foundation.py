@@ -50,6 +50,26 @@ def test_config_rejects_invalid_wake_sensitivity(tmp_path: Path) -> None:
         load_config(config_path)
 
 
+def test_config_rejects_non_finite_rag_timeout(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text("[assistant]\nrag_timeout_seconds = nan\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="rag_timeout_seconds must be finite and positive"):
+        load_config(config_path)
+
+
+@pytest.mark.parametrize("setting", ["tts_enabled", "rag_enabled"])
+def test_config_rejects_non_boolean_feature_switches(
+    tmp_path: Path,
+    setting: str,
+) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(f'[assistant]\n{setting} = "false"\n', encoding="utf-8")
+
+    with pytest.raises(ValueError, match=f"{setting} must be a boolean"):
+        load_config(config_path)
+
+
 def test_config_loads_wake_sensitivity_and_cooldown(tmp_path: Path) -> None:
     config_path = tmp_path / "config.toml"
     config_path.write_text(
@@ -167,5 +187,30 @@ def test_ui_stays_in_standby_until_wake_confirmation(monkeypatch: pytest.MonkeyP
     assert window.status_text == "LISTENING - WAKE WORD CONFIRMED"
     assert window.amp_mult == 3.6
 
+    window.close()
+    app.processEvents()
+
+
+def test_ui_keeps_approved_yellow_dashes_and_clockwise_rotation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+
+    from PyQt6.QtWidgets import QApplication
+
+    from chintu.ui import ChintuCoreUI, UIBridge
+
+    app = QApplication.instance() or QApplication([])
+    window = ChintuCoreUI(UIBridge())
+    window.show()
+    app.processEvents()
+    window.timer.stop()
+    window.angle = 90.0
+
+    window.update_animation()
+
+    assert window.COLOR.name().upper() == "#FFE550"
+    assert window.NUM_DASHES == 16
+    assert window.angle == pytest.approx(91.2)
     window.close()
     app.processEvents()

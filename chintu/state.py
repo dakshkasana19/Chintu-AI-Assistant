@@ -25,6 +25,7 @@ class StateMachine:
         },
         AssistantState.LISTENING: {
             AssistantState.PROCESSING,
+            AssistantState.SPEAKING,
             AssistantState.SLEEPING,
         },
         AssistantState.PROCESSING: {

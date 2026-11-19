@@ -1,4 +1,5 @@
 import logging
+import os
 import queue
 import signal
 import sys
@@ -19,14 +20,17 @@ from chintu.audio import (
 from chintu.asr import FasterWhisperASR, TranscriptionResult
 from chintu.config import AssistantConfig, load_config
 from chintu.logging_utils import configure_logging
+from chintu.rag import RAGPipeline
+from chintu.single_instance import acquire_single_instance
 from chintu.state import AssistantState, StateMachine
+from chintu.tts import TextToSpeech
 from chintu.ui.chintu_ui import ChintuCoreUI, UIBridge
 
 logger = logging.getLogger("chintu")
 
 
 class ChintuRuntime:
-    """Run persistent capture, VAD, local wake detection, and command ASR."""
+    """Run persistent capture, VAD, local wake detection, command ASR, actions, TTS, and RAG."""
 
     def __init__(self, bridge, assistant_config: AssistantConfig | None = None):
         self.bridge = bridge
@@ -43,10 +47,14 @@ class ChintuRuntime:
         self._wake_thread: threading.Thread | None = None
         self._command_thread: threading.Thread | None = None
         self._asr: FasterWhisperASR | None = None
+        self._tts: TextToSpeech | None = None
+        self._rag: RAGPipeline | None = None
+        self._tts_barge_in = threading.Event()
         self._intent_router = IntentRouter(self.config.exit_phrases)
         self._actions: WindowsActionExecutor | None = None
         self._pending_confirmation: tuple[Intent, float] | None = None
         self.latest_transcription: TranscriptionResult | None = None
+        self._tts_echo_gate_until: float = 0.0  # monotonic timestamp; discard segments before this
         logger.info("Chintu runtime initialized")
 
     def start(self) -> None:
@@ -79,6 +87,8 @@ class ChintuRuntime:
             if self._audio_thread.is_alive():
                 logger.warning("Audio worker did not stop within the shutdown timeout")
         self.bridge.visibility_changed.emit(False)
+        if self._tts is not None:
+            self._tts.stop(timeout=2.0)
         if self._actions is not None:
             canceled = self._actions.cancel_timers()
             if canceled:
@@ -89,6 +99,40 @@ class ChintuRuntime:
         with self._state_lock:
             if self.state.state is not next_state:
                 self.state.transition(next_state)
+
+    def _on_speaking_start(self) -> None:
+        with self._state_lock:
+            if self.state.state in {AssistantState.PROCESSING, AssistantState.LISTENING}:
+                self.state.transition(AssistantState.SPEAKING)
+        self.bridge.status_changed.emit("Speaking")
+
+    def _on_speaking_end(self) -> None:
+        with self._state_lock:
+            if self.state.state is AssistantState.SPEAKING:
+                self.state.transition(AssistantState.LISTENING)
+        if self._tts_barge_in.is_set():
+            self._tts_barge_in.clear()
+            self._tts_echo_gate_until = 0.0
+        else:
+            self._tts_echo_gate_until = time.monotonic() + 0.8
+        self.bridge.status_changed.emit("Listening for command")
+
+    def _interrupt_tts_for_speech(self) -> None:
+        with self._state_lock:
+            if self.state.state is not AssistantState.SPEAKING:
+                return
+            self.state.transition(AssistantState.LISTENING)
+
+        self._tts_barge_in.set()
+        if self._tts is not None:
+            self._tts.interrupt()
+        self._tts_echo_gate_until = 0.0
+        self.bridge.status_changed.emit("Listening for command")
+
+    def _respond(self, message: str, *, speak: bool = True) -> None:
+        self.bridge.response_changed.emit(message)
+        if speak and self._tts is not None and self.config.tts_enabled:
+            self._tts.speak(message)
 
     def _audio_loop(self) -> None:
         try:
@@ -131,6 +175,24 @@ class ChintuRuntime:
             WindowsAppIndex.discover(self.config.app_aliases),
             notify=self._notify_timer,
         )
+
+        if self.config.tts_enabled and self._tts is None:
+            try:
+                self._tts = TextToSpeech(
+                    config=self.config,
+                    on_speaking_start=self._on_speaking_start,
+                    on_speaking_end=self._on_speaking_end,
+                )
+            except Exception as exc:
+                self._tts = None
+                logger.warning("Could not initialize TTS: %s", exc)
+
+        if self.config.rag_enabled and self._rag is None:
+            try:
+                self._rag = RAGPipeline(self.config)
+            except Exception as exc:
+                self._rag = None
+                logger.warning("Could not initialize RAG pipeline: %s", exc)
         if self._stopping.is_set():
             return
         self._wake_stopping.clear()
@@ -170,6 +232,8 @@ class ChintuRuntime:
                             continue
                         self.bridge.microphone_rms_changed.emit(self._capture.rms)
                         segment = detector.process_frame(frame)
+                        if detector.speech_active:
+                            self._interrupt_tts_for_speech()
                         if segment is not None:
                             logger.info(
                                 "VAD utterance captured: duration=%.2fs peak_rms=%.4f backend=%s",
@@ -211,9 +275,20 @@ class ChintuRuntime:
         logger.info("Audio worker stopped")
 
     def _queue_speech_segment(self, segment: SpeechSegment) -> None:
+        self._interrupt_tts_for_speech()
         with self._state_lock:
             current_state = self.state.state
-            if current_state is AssistantState.SLEEPING:
+            if current_state is AssistantState.SPEAKING:
+                self._tts_barge_in.set()
+                if self._tts is not None:
+                    self._tts.interrupt()
+                self._tts_echo_gate_until = 0.0
+                self.state.transition(AssistantState.LISTENING)
+                if self._asr is None:
+                    return
+                target_queue = self._command_segments
+                purpose = "Command ASR (barge-in)"
+            elif current_state is AssistantState.SLEEPING:
                 target_queue = self._wake_segments
                 purpose = "Wake confirmation"
             elif current_state in {
@@ -221,6 +296,10 @@ class ChintuRuntime:
                 AssistantState.PROCESSING,
             }:
                 if self._asr is None:
+                    return
+                # Suppress echo: discard segments captured right after TTS finished
+                if time.monotonic() < self._tts_echo_gate_until:
+                    logger.debug("Discarding segment within TTS echo gate window")
                     return
                 target_queue = self._command_segments
                 purpose = "Command ASR"
@@ -261,6 +340,14 @@ class ChintuRuntime:
                     self.state.transition(AssistantState.LISTENING)
                 else:
                     continue
+            # Flush any segments queued before the wake transition — these
+            # contain the wake-word utterance itself and must not be treated
+            # as commands.
+            while not self._command_segments.empty():
+                try:
+                    self._command_segments.get_nowait()
+                except Exception:
+                    break
             self.bridge.visibility_changed.emit(True)
             if self._asr is None:
                 self.bridge.status_changed.emit("Command transcription unavailable")
@@ -272,6 +359,7 @@ class ChintuRuntime:
                 self.bridge.response_changed.emit(
                     "Wake word confirmed. Listening for your command."
                 )
+                self._respond("Yes?", speak=True)
 
     def _command_asr_loop(self, asr: FasterWhisperASR) -> None:
         while not self._command_stopping.is_set() and not self._stopping.is_set():
@@ -339,10 +427,10 @@ class ChintuRuntime:
     def _handle_command(self, command_text: str) -> None:
         intent = self._intent_router.route(command_text)
         logger.info(
-            "Intent routed: name=%s confidence=%.2f slots=%s",
+            "Intent routed: name=%s confidence=%.2f slot_names=%s",
             intent.name,
             intent.confidence,
-            intent.slots,
+            sorted(intent.slots),
         )
         pending = self._pending_confirmation
         if pending is not None and time.monotonic() > pending[1]:
@@ -351,18 +439,18 @@ class ChintuRuntime:
 
         if intent.name == "confirm":
             if pending is None:
-                self.bridge.response_changed.emit("There is no action waiting for confirmation.")
+                self._respond("There is no action waiting for confirmation.")
                 return
             self._pending_confirmation = None
             self._execute_action(pending[0], confirmed=True)
             return
         if intent.name == "cancel":
             self._pending_confirmation = None
-            self.bridge.response_changed.emit("Canceled.")
+            self._respond("Canceled.")
             return
         if pending is not None:
             self._pending_confirmation = None
-            self.bridge.response_changed.emit(
+            self._respond(
                 "The pending action was canceled because a different command was received."
             )
 
@@ -372,35 +460,62 @@ class ChintuRuntime:
                     self.state.transition(AssistantState.SLEEPING)
             self.bridge.visibility_changed.emit(False)
             self.bridge.status_changed.emit("Standby - say Chintu")
-            self.bridge.response_changed.emit("Going to standby.")
+            self._respond("Going to standby.", speak=False)
+            if self._tts is not None:
+                self._tts.interrupt()
             return
         if intent.name == "information_request":
-            self.bridge.response_changed.emit(
-                "Question answering is not connected yet. General questions will be available in a later phase."
-            )
+            query = str(intent.slots.get("query") or command_text)
+            self._answer_information_request(query)
             return
         if intent.name in {"unknown", "clarify"}:
             prompt = intent.slots.get("prompt")
-            self.bridge.response_changed.emit(
+            self._respond(
                 str(prompt) if prompt else "I didn't understand that command. Please try again."
             )
             return
         if self._actions is None:
-            self.bridge.response_changed.emit("Local actions are unavailable.")
+            self._respond("Local actions are unavailable.")
             return
         if intent.requires_confirmation:
             self._pending_confirmation = (intent, time.monotonic() + 30.0)
             target = intent.slots.get("target") or intent.slots.get("operation", "action")
-            self.bridge.response_changed.emit(
+            self._respond(
                 f"This may close or power off your computer ({target}). "
                 "Say 'confirm' to proceed or 'cancel' to stop."
             )
             return
         self._execute_action(intent)
 
+    def _answer_information_request(self, query: str) -> None:
+        if self._rag is None:
+            self._respond("Information retrieval is not connected.")
+            return
+
+        with self._state_lock:
+            if self.state.state is not AssistantState.PROCESSING:
+                self.state.transition(AssistantState.PROCESSING)
+
+        self.bridge.status_changed.emit("Searching...")
+        try:
+            rag_result = self._rag.answer(query)
+            logger.info(
+                "RAG completed: verified=%s confidence=%.2f answer_chars=%d",
+                rag_result.verified,
+                rag_result.confidence,
+                len(rag_result.answer),
+            )
+            response = rag_result.answer
+            if rag_result.verified and rag_result.source_title:
+                response = f"{response} Source: {rag_result.source_title}."
+            self._respond(response)
+        except Exception:
+            logger.exception("RAG information retrieval failed")
+            self._respond("I couldn't look up that information. Please try again.")
+
     def _execute_action(self, intent: Intent, *, confirmed: bool = False) -> None:
         if self._actions is None:
-            self.bridge.response_changed.emit("Local actions are unavailable.")
+            self._respond("Local actions are unavailable.")
             return
         result = self._actions.execute(intent, confirmed=confirmed)
         self._publish_action_result(intent, result)
@@ -412,7 +527,7 @@ class ChintuRuntime:
             self.bridge.status_changed.emit("Power action scheduled")
         elif intent.name == "lock_workstation" and result.success:
             self.bridge.status_changed.emit("Locking workstation")
-        self.bridge.response_changed.emit(result.message)
+        self._respond(result.message)
         logger.info(
             "Action %s: success=%s message=%s",
             intent.name,
@@ -423,7 +538,7 @@ class ChintuRuntime:
     def _notify_timer(self, message: str) -> None:
         logger.info("Scheduled notification: %s", message)
         self.bridge.status_changed.emit("Timer finished")
-        self.bridge.response_changed.emit(message)
+        self._respond(message)
 
 
 def handle_exit(*_args):
@@ -433,20 +548,29 @@ def handle_exit(*_args):
 
 
 def main() -> None:
-    config = load_config()
-    configure_logging(config)
-    signal.signal(signal.SIGINT, handle_exit)
-    app = QApplication(sys.argv)
+    instance_guard = acquire_single_instance()
+    if instance_guard is None:
+        print("Chintu is already running; this launch was ignored.", file=sys.stderr)
+        return
 
-    bridge = UIBridge()
-    window = ChintuCoreUI(bridge)
-    runtime = ChintuRuntime(bridge, config)
-    runtime.start()
-    app.aboutToQuit.connect(runtime.stop)
+    try:
+        config = load_config()
+        configure_logging(config)
+        signal.signal(signal.SIGINT, handle_exit)
+        app = QApplication(sys.argv)
 
-    logger.info("Loaded configuration: %s", config)
-    logger.info("Chintu Phase 3 audio, wake-word, and command-ASR runtime started")
-    sys.exit(app.exec())
+        bridge = UIBridge()
+        window = ChintuCoreUI(bridge)
+        runtime = ChintuRuntime(bridge, config)
+        runtime.start()
+        app.aboutToQuit.connect(runtime.stop)
+
+        logger.info("Starting Chintu process (pid=%s)", os.getpid())
+        logger.info("Loaded configuration: %s", config)
+        logger.info("Chintu Phase 3 audio, wake-word, and command-ASR runtime started")
+        sys.exit(app.exec())
+    finally:
+        instance_guard.close()
 
 
 if __name__ == "__main__":

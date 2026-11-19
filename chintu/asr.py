@@ -129,8 +129,6 @@ class FasterWhisperASR:
             beam_size=5,
             condition_on_previous_text=False,
             vad_filter=False,
-            initial_prompt="Chintu",
-            hotwords="Chintu",
             no_speech_threshold=self.config.asr_no_speech_threshold,
             log_prob_threshold=self.config.asr_log_prob_threshold,
             compression_ratio_threshold=self.config.asr_compression_ratio_threshold,

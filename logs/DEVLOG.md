@@ -66,3 +66,26 @@
 - Supports app and HTTPS website launching, confirmed app closing and power operations, volume/brightness/media controls, workstation lock, screenshots, local time/date/day and system status, timers, alarms, and cancellation.
 - Destructive intents require spoken confirmation; shutdown and restart are scheduled with a delay. Unit tests use injected platform boundaries; live Windows action behavior and spoken-command accuracy have not been manually validated.
 - Validation: Full pytest suite passed (91 tests). No live Windows action execution was performed as part of this verification.
+- Repository update: Phase 3 and Phase 4 changes were pushed to `origin/master` in commit `ea56c60` (`Add local command ASR and deterministic actions`).
+
+## 2026-11-19 — Phase 5: Offline Speech Output (TTS)
+
+- Added local offline text-to-speech synthesis in `chintu/tts.py` supporting both the Piper neural voice engine (`piper-tts`) and `pyttsx3` (Windows SAPI5) fallback.
+- Normalizes text via `TTSNormalizer` (currencies, units, percentages, decimals, abbreviations, stripping markdown and URLs).
+- Audio streams in 50 ms chunks via `sounddevice.OutputStream`; VAD-confirmed speech onset interrupts playback while VAD continues capturing the full command.
+- The Piper model is optional (`python scripts/download_models.py --tts`); the auto engine falls back to the local `pyttsx3` voice when the model is absent. Mocked playback tests do not verify real output-device playback.
+
+## 2026-11-19 — Phase 6: Grounded Retrieval and Answer Verification (RAG)
+
+- Added keyless factual question answering in `chintu/rag/` for general information and weather inquiries.
+- Integrates keyless Open-Meteo API for real-time weather and geocoding, Wikipedia REST API for encyclopedic entity summaries, and DuckDuckGo (`ddgs`) for public web search snippets.
+- Reranks extracted passages via Okapi BM25 (`BM25Reranker`). The verifier uses lexical query-term coverage and returns source-extractive text or abstains; it is a relevance filter, not semantic fact-checking, and cannot guarantee factual accuracy.
+- Wired into `chintu_assistant.py` for intent `information_request`; verified spoken responses include the source title. Weather requests without a location ask for one; failed or incomplete weather data is not replaced with assumed conditions.
+- Unit and mocked pipeline tests cover API parsing, ranking, abstention, and runtime attribution. Generic live smoke checks returned a Wikipedia result and Open-Meteo weather data; these do not constitute a factual-accuracy benchmark.
+
+## 2026-11-19 — Phase 5/6 reliability follow-up
+
+- TTS now interrupts at VAD-confirmed speech onset, and the post-playback echo gate no longer drops the barging-in command.
+- Confirmed the local `pyttsx3` fallback synthesizes finite 22.05 kHz audio samples; real output-device playback remains untested. Piper voice model is optional and not present locally.
+- Removed raw transcript, query, answer, and synthesized speech content from application logs; only operational metadata is retained.
+- Added explicit UI regression coverage for the approved yellow segmented circle and clockwise rotation. The UI implementation was not changed.

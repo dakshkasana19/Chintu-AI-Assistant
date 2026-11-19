@@ -177,6 +177,12 @@ class VoiceActivityDetector:
     def backend_name(self) -> str:
         return self.backend.name
 
+    @property
+    def speech_active(self) -> bool:
+        """Whether the onset threshold has been met and an utterance is active."""
+
+        return bool(self._active_frames)
+
     def reset(self) -> None:
         """Clear rolling speech state after a stream interruption or shutdown."""
 
