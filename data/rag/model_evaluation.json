@@ -1,0 +1,105 @@
+{
+  "dataset": {
+    "topics": 100,
+    "evidence_bundles": 200,
+    "ranker_training_pairs": 210,
+    "split_bundles": {
+      "validation": 30,
+      "train": 140,
+      "test": 30
+    },
+    "annotation_status": "assistant_draft",
+    "caveat": "Labels are generated from matched-source inclusion and curated negatives, not independently human-judged. Metrics are preliminary and do not establish real-world answer quality."
+  },
+  "versions": {
+    "scikit_learn": "1.7.2"
+  },
+  "passage_ranker": {
+    "validation": {
+      "tfidf_logistic_regression": {
+        "queries": 15.0,
+        "hit_at_1": 0.4666666666666667,
+        "mrr": 0.6666666666666666,
+        "ndcg_at_3": 0.7652539916541926
+      },
+      "bm25_baseline": {
+        "queries": 15.0,
+        "hit_at_1": 1.0,
+        "mrr": 1.0,
+        "ndcg_at_3": 1.0
+      }
+    },
+    "test": {
+      "tfidf_logistic_regression": {
+        "queries": 15.0,
+        "hit_at_1": 0.26666666666666666,
+        "mrr": 0.5888888888888888,
+        "ndcg_at_3": 0.6962148413508971
+      },
+      "bm25_baseline": {
+        "queries": 15.0,
+        "hit_at_1": 1.0,
+        "mrr": 1.0,
+        "ndcg_at_3": 0.998856148527116
+      }
+    }
+  },
+  "answerability": {
+    "validation": {
+      "tfidf_logistic_regression": {
+        "bundles": 30,
+        "accuracy": 0.5,
+        "precision_answerable": 0.5,
+        "recall_answerable": 0.6,
+        "f1_answerable": 0.5454545454545454,
+        "confusion_matrix": {
+          "true_insufficient": 6,
+          "false_answerable": 9,
+          "false_insufficient": 6,
+          "true_answerable": 9
+        }
+      },
+      "bm25_grounding_baseline": {
+        "bundles": 30,
+        "accuracy": 0.9333333333333333,
+        "precision_answerable": 0.9333333333333333,
+        "recall_answerable": 0.9333333333333333,
+        "f1_answerable": 0.9333333333333333,
+        "confusion_matrix": {
+          "true_insufficient": 14,
+          "false_answerable": 1,
+          "false_insufficient": 1,
+          "true_answerable": 14
+        }
+      }
+    },
+    "test": {
+      "tfidf_logistic_regression": {
+        "bundles": 30,
+        "accuracy": 0.5,
+        "precision_answerable": 0.5,
+        "recall_answerable": 1.0,
+        "f1_answerable": 0.6666666666666666,
+        "confusion_matrix": {
+          "true_insufficient": 0,
+          "false_answerable": 15,
+          "false_insufficient": 0,
+          "true_answerable": 15
+        }
+      },
+      "bm25_grounding_baseline": {
+        "bundles": 30,
+        "accuracy": 1.0,
+        "precision_answerable": 1.0,
+        "recall_answerable": 1.0,
+        "f1_answerable": 1.0,
+        "confusion_matrix": {
+          "true_insufficient": 15,
+          "false_answerable": 0,
+          "false_insufficient": 0,
+          "true_answerable": 15
+        }
+      }
+    }
+  }
+}

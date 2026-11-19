@@ -1,0 +1,100 @@
+{"topic_id":"s01","title":"Photosynthesis","category":"science","query":"What does photosynthesis do?","hard_negative_topic_id":"s02"}
+{"topic_id":"s02","title":"Artificial photosynthesis","category":"science","query":"What is artificial photosynthesis?","hard_negative_topic_id":"s01"}
+{"topic_id":"s03","title":"General relativity","category":"science","query":"What is general relativity?","hard_negative_topic_id":"s04"}
+{"topic_id":"s04","title":"Special relativity","category":"science","query":"What is special relativity?","hard_negative_topic_id":"s03"}
+{"topic_id":"s05","title":"Climate","category":"science","query":"What is climate?","hard_negative_topic_id":"s06"}
+{"topic_id":"s06","title":"Weather","category":"science","query":"What is weather?","hard_negative_topic_id":"s05"}
+{"topic_id":"s07","title":"Vaccine","category":"science","query":"What is a vaccine?","hard_negative_topic_id":"s08"}
+{"topic_id":"s08","title":"Immune system","category":"science","query":"What is the immune system?","hard_negative_topic_id":"s07"}
+{"topic_id":"s09","title":"Solar eclipse","category":"science","query":"What happens during a solar eclipse?","hard_negative_topic_id":"s10"}
+{"topic_id":"s10","title":"Lunar eclipse","category":"science","query":"What happens during a lunar eclipse?","hard_negative_topic_id":"s09"}
+{"topic_id":"s11","title":"Mitochondrion","category":"science","query":"What is the role of mitochondria in a cell?","hard_negative_topic_id":"s12"}
+{"topic_id":"s12","title":"Cell (biology)","category":"science","query":"What is a biological cell?","hard_negative_topic_id":"s11"}
+{"topic_id":"s13","title":"Water cycle","category":"science","query":"What is the water cycle?","hard_negative_topic_id":"s14"}
+{"topic_id":"s14","title":"Carbon cycle","category":"science","query":"What is the carbon cycle?","hard_negative_topic_id":"s13"}
+{"topic_id":"s15","title":"Gravity","category":"science","query":"What is gravity?","hard_negative_topic_id":"s03"}
+{"topic_id":"s16","title":"Atom","category":"science","query":"What is an atom?"}
+{"topic_id":"s17","title":"DNA","category":"science","query":"What is DNA?","hard_negative_topic_id":"s12"}
+{"topic_id":"s18","title":"Plate tectonics","category":"science","query":"What is plate tectonics?","hard_negative_topic_id":"s19"}
+{"topic_id":"s19","title":"Volcano","category":"science","query":"What is a volcano?","hard_negative_topic_id":"s18"}
+{"topic_id":"s20","title":"Renewable energy","category":"science","query":"What is renewable energy?"}
+{"topic_id":"t01","title":"Artificial intelligence","category":"technology","query":"What is artificial intelligence?","hard_negative_topic_id":"t02"}
+{"topic_id":"t02","title":"Machine learning","category":"technology","query":"What is machine learning?","hard_negative_topic_id":"t03"}
+{"topic_id":"t03","title":"Neural network","category":"technology","query":"What is a neural network?","hard_negative_topic_id":"t02"}
+{"topic_id":"t04","title":"Algorithm","category":"technology","query":"What is an algorithm?","hard_negative_topic_id":"t05"}
+{"topic_id":"t05","title":"Data structure","category":"technology","query":"What is a data structure?","hard_negative_topic_id":"t04"}
+{"topic_id":"t06","title":"Python (programming language)","category":"technology","query":"What is the Python programming language?","hard_negative_topic_id":"t07"}
+{"topic_id":"t07","title":"Java (programming language)","category":"technology","query":"What is the Java programming language?","hard_negative_topic_id":"t06"}
+{"topic_id":"t08","title":"HTTP","category":"technology","query":"What is HTTP?","hard_negative_topic_id":"t09"}
+{"topic_id":"t09","title":"Internet","category":"technology","query":"What is the Internet?","hard_negative_topic_id":"t08"}
+{"topic_id":"t10","title":"Database","category":"technology","query":"What is a database?","hard_negative_topic_id":"t05"}
+{"topic_id":"t11","title":"Encryption","category":"technology","query":"What is encryption?","hard_negative_topic_id":"t12"}
+{"topic_id":"t12","title":"Cryptography","category":"technology","query":"What is cryptography?","hard_negative_topic_id":"t11"}
+{"topic_id":"t13","title":"Operating system","category":"technology","query":"What is an operating system?","hard_negative_topic_id":"t14"}
+{"topic_id":"t14","title":"Windows 11","category":"technology","query":"What is Windows 11?","hard_negative_topic_id":"t15"}
+{"topic_id":"t15","title":"Linux","category":"technology","query":"What is Linux?","hard_negative_topic_id":"t14"}
+{"topic_id":"t16","title":"Git","category":"technology","query":"What is Git?","hard_negative_topic_id":"t04"}
+{"topic_id":"t17","title":"Central processing unit","category":"technology","query":"What does a central processing unit do?","hard_negative_topic_id":"t18"}
+{"topic_id":"t18","title":"Graphics processing unit","category":"technology","query":"What does a graphics processing unit do?","hard_negative_topic_id":"t17"}
+{"topic_id":"t19","title":"Random-access memory","category":"technology","query":"What is random-access memory?","hard_negative_topic_id":"t17"}
+{"topic_id":"t20","title":"Cybersecurity","category":"technology","query":"What is cybersecurity?","hard_negative_topic_id":"t12"}
+{"topic_id":"g01","title":"Tokyo","category":"geography","query":"Where is Tokyo?","hard_negative_topic_id":"g13"}
+{"topic_id":"g02","title":"Paris","category":"geography","query":"Where is Paris?","hard_negative_topic_id":"g11"}
+{"topic_id":"g03","title":"Himalayas","category":"geography","query":"Where are the Himalayas?","hard_negative_topic_id":"g09"}
+{"topic_id":"g04","title":"Nile","category":"geography","query":"Where is the Nile?","hard_negative_topic_id":"g05"}
+{"topic_id":"g05","title":"Amazon River","category":"geography","query":"Where is the Amazon River?","hard_negative_topic_id":"g16"}
+{"topic_id":"g06","title":"Pacific Ocean","category":"geography","query":"What is the Pacific Ocean?","hard_negative_topic_id":"g20"}
+{"topic_id":"g07","title":"Sahara","category":"geography","query":"Where is the Sahara?"}
+{"topic_id":"g08","title":"Antarctica","category":"geography","query":"Where is Antarctica?"}
+{"topic_id":"g09","title":"Mount Everest","category":"geography","query":"Where is Mount Everest?","hard_negative_topic_id":"g03"}
+{"topic_id":"g10","title":"Great Barrier Reef","category":"geography","query":"Where is the Great Barrier Reef?","hard_negative_topic_id":"g17"}
+{"topic_id":"g11","title":"London","category":"geography","query":"Where is London?","hard_negative_topic_id":"g02"}
+{"topic_id":"g12","title":"New York City","category":"geography","query":"Where is New York City?","hard_negative_topic_id":"g01"}
+{"topic_id":"g13","title":"India","category":"geography","query":"Where is India?","hard_negative_topic_id":"g14"}
+{"topic_id":"g14","title":"Japan","category":"geography","query":"Where is Japan?","hard_negative_topic_id":"g13"}
+{"topic_id":"g15","title":"Lake Baikal","category":"geography","query":"Where is Lake Baikal?","hard_negative_topic_id":"g17"}
+{"topic_id":"g16","title":"Amazon rainforest","category":"geography","query":"Where is the Amazon rainforest?","hard_negative_topic_id":"g05"}
+{"topic_id":"g17","title":"Mediterranean Sea","category":"geography","query":"Where is the Mediterranean Sea?","hard_negative_topic_id":"g10"}
+{"topic_id":"g18","title":"Andes","category":"geography","query":"Where are the Andes?","hard_negative_topic_id":"g03"}
+{"topic_id":"g19","title":"Mount Fuji","category":"geography","query":"Where is Mount Fuji?","hard_negative_topic_id":"g09"}
+{"topic_id":"g20","title":"Arctic Ocean","category":"geography","query":"What is the Arctic Ocean?","hard_negative_topic_id":"g06"}
+{"topic_id":"p01","title":"Albert Einstein","category":"people","query":"Who was Albert Einstein?","hard_negative_topic_id":"p03"}
+{"topic_id":"p02","title":"Marie Curie","category":"people","query":"Who was Marie Curie?","hard_negative_topic_id":"p12"}
+{"topic_id":"p03","title":"Isaac Newton","category":"people","query":"Who was Isaac Newton?","hard_negative_topic_id":"p01"}
+{"topic_id":"p04","title":"Ada Lovelace","category":"people","query":"Who was Ada Lovelace?","hard_negative_topic_id":"p17"}
+{"topic_id":"p05","title":"Charles Darwin","category":"people","query":"Who was Charles Darwin?","hard_negative_topic_id":"p18"}
+{"topic_id":"p06","title":"Alan Turing","category":"people","query":"Who was Alan Turing?","hard_negative_topic_id":"p17"}
+{"topic_id":"p07","title":"Jane Austen","category":"people","query":"Who was Jane Austen?","hard_negative_topic_id":"p08"}
+{"topic_id":"p08","title":"William Shakespeare","category":"people","query":"Who was William Shakespeare?","hard_negative_topic_id":"p07"}
+{"topic_id":"p09","title":"Nelson Mandela","category":"people","query":"Who was Nelson Mandela?","hard_negative_topic_id":"p10"}
+{"topic_id":"p10","title":"Mahatma Gandhi","category":"people","query":"Who was Mahatma Gandhi?","hard_negative_topic_id":"p09"}
+{"topic_id":"p11","title":"Nikola Tesla","category":"people","query":"Who was Nikola Tesla?","hard_negative_topic_id":"p03"}
+{"topic_id":"p12","title":"Rosalind Franklin","category":"people","query":"Who was Rosalind Franklin?","hard_negative_topic_id":"p02"}
+{"topic_id":"p13","title":"Katherine Johnson","category":"people","query":"Who was Katherine Johnson?","hard_negative_topic_id":"p04"}
+{"topic_id":"p14","title":"Leonardo da Vinci","category":"people","query":"Who was Leonardo da Vinci?","hard_negative_topic_id":"p08"}
+{"topic_id":"p15","title":"Marie Antoinette","category":"people","query":"Who was Marie Antoinette?"}
+{"topic_id":"p16","title":"Martin Luther King Jr.","category":"people","query":"Who was Martin Luther King Jr.?","hard_negative_topic_id":"p09"}
+{"topic_id":"p17","title":"Charles Babbage","category":"people","query":"Who was Charles Babbage?","hard_negative_topic_id":"p04"}
+{"topic_id":"p18","title":"Galileo Galilei","category":"people","query":"Who was Galileo Galilei?","hard_negative_topic_id":"p05"}
+{"topic_id":"p19","title":"Florence Nightingale","category":"people","query":"Who was Florence Nightingale?","hard_negative_topic_id":"p02"}
+{"topic_id":"p20","title":"Amelia Earhart","category":"people","query":"Who was Amelia Earhart?"}
+{"topic_id":"h01","title":"World War II","category":"history","query":"What was World War II?","hard_negative_topic_id":"h20"}
+{"topic_id":"h02","title":"French Revolution","category":"history","query":"What was the French Revolution?","hard_negative_topic_id":"h08"}
+{"topic_id":"h03","title":"Ancient Egypt","category":"history","query":"What was Ancient Egypt?","hard_negative_topic_id":"h04"}
+{"topic_id":"h04","title":"Roman Empire","category":"history","query":"What was the Roman Empire?","hard_negative_topic_id":"h03"}
+{"topic_id":"h05","title":"United Nations","category":"history","query":"What is the United Nations?","hard_negative_topic_id":"h19"}
+{"topic_id":"h06","title":"Renaissance","category":"history","query":"What was the Renaissance?","hard_negative_topic_id":"h07"}
+{"topic_id":"h07","title":"Industrial Revolution","category":"history","query":"What was the Industrial Revolution?","hard_negative_topic_id":"h06"}
+{"topic_id":"h08","title":"American Civil War","category":"history","query":"What was the American Civil War?","hard_negative_topic_id":"h02"}
+{"topic_id":"h09","title":"Berlin Wall","category":"history","query":"What was the Berlin Wall?","hard_negative_topic_id":"h20"}
+{"topic_id":"h10","title":"Apollo 11","category":"history","query":"What was Apollo 11?","hard_negative_topic_id":"h11"}
+{"topic_id":"h11","title":"Declaration of Independence","category":"history","query":"What is the Declaration of Independence?","hard_negative_topic_id":"h10"}
+{"topic_id":"h12","title":"Great Depression","category":"history","query":"What was the Great Depression?","hard_negative_topic_id":"h07"}
+{"topic_id":"h13","title":"Silk Road","category":"history","query":"What was the Silk Road?","hard_negative_topic_id":"h14"}
+{"topic_id":"h14","title":"Printing press","category":"history","query":"What was the printing press?","hard_negative_topic_id":"h06"}
+{"topic_id":"h15","title":"Democracy","category":"history","query":"What is democracy?","hard_negative_topic_id":"h05"}
+{"topic_id":"h16","title":"Olympic Games","category":"history","query":"What are the Olympic Games?","hard_negative_topic_id":"h06"}
+{"topic_id":"h17","title":"Jazz","category":"history","query":"What is jazz?","hard_negative_topic_id":"h06"}
+{"topic_id":"h18","title":"Great Wall of China","category":"history","query":"What is the Great Wall of China?","hard_negative_topic_id":"h03"}
+{"topic_id":"h19","title":"Treaty of Versailles","category":"history","query":"What was the Treaty of Versailles?","hard_negative_topic_id":"h01"}
+{"topic_id":"h20","title":"Cold War","category":"history","query":"What was the Cold War?","hard_negative_topic_id":"h01"}

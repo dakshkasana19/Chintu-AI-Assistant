@@ -8,6 +8,7 @@ piper-tts>=1.2.0
 pyttsx3>=2.90
 ddgs>=9.13.0
 requests>=2.31.0
+scikit-learn>=1.5.0
 trafilatura>=1.12.0
 feedparser>=6.0.10
 rapidfuzz>=3.1.0
