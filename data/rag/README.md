@@ -9,6 +9,8 @@ These files are a prototype dataset for Chintu's passage-ranking and answerabili
 - `topic_manifest.jsonl`: 100 curated topics, questions, categories, and selected hard-negative topics.
 - `questions.csv`: a readable, spreadsheet-friendly list of the 100 questions, their topic/category, source revision URL, and split.
 - `annotation_review.csv`: a review sheet with each matched source, its current curated hard negative, and the strongest same-split BM25 distractor. Human-review columns are intentionally blank; this file does not change training labels.
+- `test_label_review_draft.csv`: provisional assistant judgments for the 15 held-out questions and their paired answerable/insufficient bundles. They are separate from the dataset labels and require confirmation before being applied.
+- `test_label_review_draft.csv`: provisional assistant review of the 15 held-out questions, including the two hard negatives used in that split and one BM25 distractor. These judgments are not human-approved and have not changed the training/evaluation labels.
 - `expanded_passages.jsonl`: one Wikipedia summary passage for each manifest topic.
 - `expanded_queries.jsonl`: 200 evidence bundles (supported and evidence-missing per question), each with three candidate passages and draft relevance labels.
 - `model_evaluation.json`: preliminary held-out metrics for the TF-IDF/logistic-regression models and existing BM25/grounding baselines.
