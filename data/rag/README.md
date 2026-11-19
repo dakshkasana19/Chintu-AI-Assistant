@@ -8,10 +8,12 @@ These files are a prototype dataset for Chintu's passage-ranking and answerabili
 - `pilot_queries.jsonl`: one question per line, candidate passage IDs with graded relevance labels, an answerability label, and the passage IDs that support an answer.
 - `topic_manifest.jsonl`: 100 curated topics, questions, categories, and selected hard-negative topics.
 - `questions.csv`: a readable, spreadsheet-friendly list of the 100 questions, their topic/category, source revision URL, and split.
+- `annotation_review.csv`: a review sheet with each matched source, its current curated hard negative, and the strongest same-split BM25 distractor. Human-review columns are intentionally blank; this file does not change training labels.
 - `expanded_passages.jsonl`: one Wikipedia summary passage for each manifest topic.
 - `expanded_queries.jsonl`: 200 evidence bundles (supported and evidence-missing per question), each with three candidate passages and draft relevance labels.
 - `model_evaluation.json`: preliminary held-out metrics for the TF-IDF/logistic-regression models and existing BM25/grounding baselines.
 - [`build_rag_dataset.py`](../../scripts/build_rag_dataset.py): regenerates the expanded files using the Wikipedia API and a fixed random seed.
+- [`audit_rag_dataset.py`](../../scripts/audit_rag_dataset.py): creates the review sheet locally from the dataset without network access.
 - [`train_rag_models.py`](../../scripts/train_rag_models.py): trains the local prototype models without paid services or API keys.
 
 The 100-row `questions.csv` is the professor-friendly question list. From the project root, activate the project virtual environment and run `python -m scripts.train_rag_models` to retrain. Model files are written under the Git-ignored `models/rag/` directory.
@@ -40,6 +42,8 @@ The passages are short excerpts from the cited English Wikipedia article summari
 The pilot's `p-tv-season` passage was an observed wrong-topic Wikipedia hit for the related query "What causes seasons on Earth?" It is reused as a hard negative for `q-season-definition`. The expanded passages are short excerpts from the cited Wikipedia summaries. Hard negatives are manually selected; random negatives are selected from other categories. A hard-negative pair that crosses a split boundary is not used. Neither dataset represents a full multi-source search distribution.
 
 The expanded labels are constructed from the matched source and curated negatives, not independently human-judged relevance. In particular, they are useful for validating the training/evaluation pipeline, but do not by themselves establish that a learned model will improve answer quality.
+
+Run `python -m scripts.audit_rag_dataset` from the project root to regenerate `annotation_review.csv`. The audit includes the strongest same-split non-source passage with a positive BM25 score, when one exists. These are candidate distractors for human review, not negatives by default: a retrieved passage may still answer the question partially or fully. In the current set, the lexical screen flagged 35 of 58 used curated hard-negative pairs for review, and BM25 ranked a distractor above the matched source for one question ("What is weather?" / "Climate").
 
 ## Preliminary model comparison
 
