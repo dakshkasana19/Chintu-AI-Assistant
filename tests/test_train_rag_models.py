@@ -43,3 +43,21 @@ def test_ranking_metrics_reward_correct_top_passage() -> None:
         "mrr": 1.0,
         "ndcg_at_3": 1.0,
     }
+
+
+def test_ndcg_at_three_ignores_candidates_below_rank_three() -> None:
+    example = {
+        "candidate_labels": [
+            {"passage_id": "p-a", "relevance": 3},
+            {"passage_id": "p-b", "relevance": 1},
+            {"passage_id": "p-c", "relevance": 0},
+            {"passage_id": "p-d", "relevance": 0},
+        ],
+    }
+
+    metrics = _ranking_metrics(
+        [example],
+        lambda _: {"p-a": 0.9, "p-b": 0.4, "p-c": 0.1, "p-d": 0.0},
+    )
+
+    assert metrics["ndcg_at_3"] == 1.0

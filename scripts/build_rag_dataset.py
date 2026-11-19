@@ -7,6 +7,7 @@ import time
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
+from typing import cast
 from urllib.parse import quote
 
 import requests
@@ -260,6 +261,94 @@ def _build_examples(
     return records
 
 
+def _read_approved_topic_groups(path: Path) -> set[str]:
+    with path.open(encoding="utf-8-sig", newline="") as file:
+        rows = csv.DictReader(file)
+        return {
+            row["topic_id"]
+            for row in rows
+            if row.get("review_status") == "user_approved_provisional"
+            and row.get("topic_id")
+        }
+
+
+def _apply_reviewed_annotations(
+    examples: list[dict[str, object]],
+    overrides: list[dict[str, object]],
+    approved_topic_groups: set[str],
+) -> list[dict[str, object]]:
+    split_by_topic: dict[str, str] = {}
+    for example in examples:
+        topic_id = str(example["topic_group"])
+        split = str(example["split"])
+        if topic_id in split_by_topic and split_by_topic[topic_id] != split:
+            raise ValueError(f"Topic {topic_id} appears in multiple splits")
+        split_by_topic[topic_id] = split
+
+    if not approved_topic_groups.issubset(split_by_topic):
+        unknown = sorted(approved_topic_groups - split_by_topic.keys())
+        raise ValueError(f"Unknown approved topic groups: {unknown}")
+    if any(split_by_topic[topic_id] != "test" for topic_id in approved_topic_groups):
+        raise ValueError("Only held-out test topics can be user-approved here")
+
+    seen_overrides: set[tuple[str, str]] = set()
+    for override in overrides:
+        topic_id = str(override["topic_group"])
+        candidate_topic_id = str(override["candidate_topic_id"])
+        relevance = int(override["relevance"])
+        origin = str(override["origin"])
+        key = (topic_id, candidate_topic_id)
+        if key in seen_overrides:
+            raise ValueError(f"Duplicate reviewed label override: {key}")
+        seen_overrides.add(key)
+        if topic_id not in split_by_topic or candidate_topic_id not in split_by_topic:
+            raise ValueError(f"Unknown topic in reviewed label override: {key}")
+        if split_by_topic[topic_id] != split_by_topic[candidate_topic_id]:
+            raise ValueError(f"Reviewed candidate crosses data splits: {key}")
+        if relevance not in {0, 1, 2, 3} or not origin:
+            raise ValueError(f"Invalid reviewed label override: {override}")
+
+        candidate_id = f"p-{candidate_topic_id}"
+        matching_examples = [
+            example
+            for example in examples
+            if str(example["topic_group"]) == topic_id
+        ]
+        if not matching_examples:
+            raise ValueError(f"No evidence examples for topic {topic_id}")
+        for example in matching_examples:
+            raw_candidates = example.get("candidate_labels")
+            if not isinstance(raw_candidates, list) or not all(
+                isinstance(candidate, dict) for candidate in raw_candidates
+            ):
+                raise ValueError(f"Invalid candidate labels for topic {topic_id}")
+            candidates = cast(list[dict[str, object]], raw_candidates)
+            existing = next(
+                (
+                    candidate
+                    for candidate in candidates
+                    if str(candidate["passage_id"]) == candidate_id
+                ),
+                None,
+            )
+            if existing is None:
+                candidates.append(
+                    {
+                        "passage_id": candidate_id,
+                        "relevance": relevance,
+                        "origin": origin,
+                    }
+                )
+            else:
+                existing["relevance"] = relevance
+                existing["origin"] = origin
+
+    for example in examples:
+        if str(example["topic_group"]) in approved_topic_groups:
+            example["annotation_status"] = "user_approved_provisional"
+    return examples
+
+
 def main() -> None:
     topics = _read_jsonl(MANIFEST_PATH)
     if len(topics) != 100:
@@ -267,6 +356,11 @@ def main() -> None:
 
     passages = _load_passages(topics)
     examples = _build_examples(topics)
+    examples = _apply_reviewed_annotations(
+        examples,
+        _read_jsonl(DATA_DIR / "reviewed_label_overrides.jsonl"),
+        _read_approved_topic_groups(DATA_DIR / "test_label_review_draft.csv"),
+    )
     _write_jsonl(
         DATA_DIR / "expanded_passages.jsonl",
         [passages[str(topic["topic_id"])] for topic in topics],

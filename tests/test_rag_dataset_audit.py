@@ -34,7 +34,7 @@ def test_review_rows_include_same_split_distractors_without_relabeling() -> None
         assert row["review_status"] == "needs_human_review"
 
 
-def test_assistant_review_draft_covers_only_held_out_topics() -> None:
+def test_review_draft_covers_only_held_out_topics_and_is_approved() -> None:
     examples = _read_jsonl(MANIFEST_PATH.parent / "expanded_queries.jsonl")
     expected_topics = {
         str(example["topic_group"])
@@ -47,6 +47,6 @@ def test_assistant_review_draft_covers_only_held_out_topics() -> None:
 
     assert {row["topic_id"] for row in rows} == expected_topics
     assert all(
-        row["review_status"] == "assistant_draft_needs_confirmation"
+        row["review_status"] == "user_approved_provisional"
         for row in rows
     )

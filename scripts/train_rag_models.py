@@ -164,8 +164,10 @@ def _ranking_metrics(
                 for index, value in enumerate(relevance)
             )
 
-        ideal_dcg = dcg(sorted(ordered_relevance, reverse=True))
-        ndcg_scores.append(dcg(ordered_relevance) / ideal_dcg if ideal_dcg else 0.0)
+        ideal_dcg = dcg(sorted(ordered_relevance, reverse=True)[:3])
+        ndcg_scores.append(
+            dcg(ordered_relevance[:3]) / ideal_dcg if ideal_dcg else 0.0
+        )
 
     count = len(examples)
     return {
@@ -279,16 +281,29 @@ def main() -> None:
 
     reranker = BM25Reranker()
     verifier = GroundingVerifier()
+    annotation_status_by_split = {
+        split: dict(
+            Counter(
+                str(example["annotation_status"])
+                for example in examples
+                if example["split"] == split
+            )
+        )
+        for split in ("train", "validation", "test")
+    }
     evaluation: dict[str, object] = {
         "dataset": {
             "topics": len({str(example["topic_group"]) for example in examples}),
             "evidence_bundles": len(examples),
+            "candidate_labels": sum(
+                len(_candidate_records(example)) for example in examples
+            ),
             "ranker_training_pairs": len(ranker_texts),
             "split_bundles": dict(Counter(str(example["split"]) for example in examples)),
-            "annotation_status": "assistant_draft",
+            "annotation_status_by_split": annotation_status_by_split,
             "caveat": (
-                "Labels are generated from matched-source inclusion and curated negatives, "
-                "not independently human-judged. Metrics are preliminary and do not establish "
+                "Train and validation labels remain assistant drafts. Test labels are user-approved "
+                "provisionally, not expert fact-checked. Metrics are preliminary and do not establish "
                 "real-world answer quality."
             ),
         },

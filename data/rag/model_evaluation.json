@@ -2,14 +2,25 @@
   "dataset": {
     "topics": 100,
     "evidence_bundles": 200,
+    "candidate_labels": 602,
     "ranker_training_pairs": 210,
     "split_bundles": {
       "validation": 30,
       "train": 140,
       "test": 30
     },
-    "annotation_status": "assistant_draft",
-    "caveat": "Labels are generated from matched-source inclusion and curated negatives, not independently human-judged. Metrics are preliminary and do not establish real-world answer quality."
+    "annotation_status_by_split": {
+      "train": {
+        "assistant_draft": 140
+      },
+      "validation": {
+        "assistant_draft": 30
+      },
+      "test": {
+        "user_approved_provisional": 30
+      }
+    },
+    "caveat": "Train and validation labels remain assistant drafts. Test labels are user-approved provisionally, not expert fact-checked. Metrics are preliminary and do not establish real-world answer quality."
   },
   "versions": {
     "scikit_learn": "1.7.2"
@@ -34,7 +45,7 @@
         "queries": 15.0,
         "hit_at_1": 0.26666666666666666,
         "mrr": 0.5888888888888888,
-        "ndcg_at_3": 0.6962148413508971
+        "ndcg_at_3": 0.6918466536713114
       },
       "bm25_baseline": {
         "queries": 15.0,

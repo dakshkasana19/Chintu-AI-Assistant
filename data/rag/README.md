@@ -1,6 +1,6 @@
 # RAG dataset
 
-These files are a prototype dataset for Chintu's passage-ranking and answerability models. They are not large enough to support claims of reliable real-world performance. All labels are assistant-generated drafts; the prototype trained on them must be human-reviewed before integration or any accuracy claims.
+These files are a prototype dataset for Chintu's passage-ranking and answerability models. They are not large enough to support claims of reliable real-world performance. The 15 held-out test topics have user-approved provisional labels; train and validation labels remain assistant drafts.
 
 ## Files and schema
 
@@ -9,10 +9,10 @@ These files are a prototype dataset for Chintu's passage-ranking and answerabili
 - `topic_manifest.jsonl`: 100 curated topics, questions, categories, and selected hard-negative topics.
 - `questions.csv`: a readable, spreadsheet-friendly list of the 100 questions, their topic/category, source revision URL, and split.
 - `annotation_review.csv`: a review sheet with each matched source, its current curated hard negative, and the strongest same-split BM25 distractor. Human-review columns are intentionally blank; this file does not change training labels.
-- `test_label_review_draft.csv`: provisional assistant judgments for the 15 held-out questions and their paired answerable/insufficient bundles. They are separate from the dataset labels and require confirmation before being applied.
-- `test_label_review_draft.csv`: provisional assistant review of the 15 held-out questions, including the two hard negatives used in that split and one BM25 distractor. These judgments are not human-approved and have not changed the training/evaluation labels.
+- `test_label_review_draft.csv`: assistant-proposed judgments for the 15 held-out questions and paired evidence bundles. The user approved these provisionally; the test labels are marked accordingly.
+- `reviewed_label_overrides.jsonl`: approved test-set changes: the Renaissance passage is unrelated to the Olympics question, and a BM25-retrieved Sahara passage is a related-but-insufficient Arctic Ocean distractor.
 - `expanded_passages.jsonl`: one Wikipedia summary passage for each manifest topic.
-- `expanded_queries.jsonl`: 200 evidence bundles (supported and evidence-missing per question), each with three candidate passages and draft relevance labels.
+- `expanded_queries.jsonl`: 200 evidence bundles (supported and evidence-missing per question), with 602 candidate labels. Most bundles have three candidates; the two Arctic Ocean bundles have four after adding the approved distractor.
 - `model_evaluation.json`: preliminary held-out metrics for the TF-IDF/logistic-regression models and existing BM25/grounding baselines.
 - [`build_rag_dataset.py`](../../scripts/build_rag_dataset.py): regenerates the expanded files using the Wikipedia API and a fixed random seed.
 - [`audit_rag_dataset.py`](../../scripts/audit_rag_dataset.py): creates the review sheet locally from the dataset without network access.
@@ -20,7 +20,7 @@ These files are a prototype dataset for Chintu's passage-ranking and answerabili
 
 The 100-row `questions.csv` is the professor-friendly question list. From the project root, activate the project virtual environment and run `python -m scripts.train_rag_models` to retrain. Model files are written under the Git-ignored `models/rag/` directory.
 
-The expanded data has 100 answerable and 100 insufficient bundles, with 70/15/15 topic groups in train/validation/test. All candidates in a bundle come from that bundle's split; the paired supported and evidence-missing bundles for a question remain together. There are no conflicting-evidence examples yet.
+The expanded data has 100 answerable and 100 insufficient bundles, with 70/15/15 topic groups in train/validation/test. All candidates in a bundle come from that bundle's split; the paired supported and evidence-missing bundles for a question remain together. The test-set review applies to all 15 test groups; training and validation labels remain drafts. There are no conflicting-evidence examples yet.
 
 Relevance is graded from `0` to `3`:
 
@@ -43,7 +43,7 @@ The passages are short excerpts from the cited English Wikipedia article summari
 
 The pilot's `p-tv-season` passage was an observed wrong-topic Wikipedia hit for the related query "What causes seasons on Earth?" It is reused as a hard negative for `q-season-definition`. The expanded passages are short excerpts from the cited Wikipedia summaries. Hard negatives are manually selected; random negatives are selected from other categories. A hard-negative pair that crosses a split boundary is not used. Neither dataset represents a full multi-source search distribution.
 
-The expanded labels are constructed from the matched source and curated negatives, not independently human-judged relevance. In particular, they are useful for validating the training/evaluation pipeline, but do not by themselves establish that a learned model will improve answer quality.
+Most expanded labels are constructed from the matched source and curated negatives, not independently human-judged relevance. User-approved test labels are provisional, not expert fact-checks. The data is useful for validating the training/evaluation pipeline, but does not by itself establish that a learned model will improve answer quality.
 
 Run `python -m scripts.audit_rag_dataset` from the project root to regenerate `annotation_review.csv`. The audit includes the strongest same-split non-source passage with a positive BM25 score, when one exists. These are candidate distractors for human review, not negatives by default: a retrieved passage may still answer the question partially or fully. In the current set, the lexical screen flagged 35 of 58 used curated hard-negative pairs for review, and BM25 ranked a distractor above the matched source for one question ("What is weather?" / "Climate").
 
